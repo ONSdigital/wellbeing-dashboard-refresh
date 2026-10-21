@@ -343,7 +343,9 @@
     renderCards(category).map((card) => card.primarySeriesId)
   );
 
-  $: anyCardsExpanded = visibleCardIds.some((seriesId) => expandedCards[seriesId]);
+  $: anyCardsExpanded = visibleCardIds.some(
+    (seriesId) => expandedCards[seriesId]
+  );
 
   function toggleAllCards() {
     const nextState = !anyCardsExpanded;
@@ -791,6 +793,8 @@
           {#each renderCards(section.category) as card}
             {@const seriesId = card.primarySeriesId}
             {@const row = card.primaryRow}
+            {@const secondarySeriesId = card.seriesEntries[1]?.seriesId}
+            {@const secondaryRow = card.seriesEntries[1]?.row}
             <button
               class="card {expandedCards[seriesId] ? 'expanded' : 'collapsed'}"
               on:click={() =>
@@ -798,10 +802,13 @@
               aria-expanded={expandedCards[seriesId] ? "true" : "false"}
               aria-label="{expandedCards[seriesId]
                 ? 'Collapse'
-                : 'Expand'} {card.cardTitle ??
-                seriesId} details"
+                : 'Expand'} {card.cardTitle ?? seriesId} details"
             >
-              <div class="card-header">
+              <div
+                class="card-header"
+                class:card-header--top-aligned={!expandedCards[seriesId] &&
+                  secondarySeriesId}
+              >
                 <div class="title-with-arrow">
                   <svg
                     class="expand-icon {expandedCards[seriesId]
@@ -827,57 +834,132 @@
                   </svg>
                   <h3 class="card-title">
                     <span class="card-title-text"
-                      >{card.cardTitle ?? metadataBySeries[seriesId]?.title ??
+                      >{card.cardTitle ??
+                        metadataBySeries[seriesId]?.title ??
                         seriesId}</span
                     >
                   </h3>
                 </div>
                 <div class="card-header-right">
                   {#if !expandedCards[seriesId]}
-                    <div class="compact-change">
-                      <p
-                        style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3; text-align:right;"
-                      >
-                        Change up to<br />{metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "monthly" ||
-                        metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "month" ||
-                        metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "quarterly" ||
-                        metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "quarter"
-                          ? row.date.toLocaleDateString("en-GB", {
-                              year: "numeric",
-                              month: "long",
-                            })
-                          : row.date.toLocaleDateString("en-GB", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                      </p>
-                      <div class="compact-indicator compact-indicator--short">
-                        <ChangeIndicator {seriesId} {metadataBySeries} />
+                    {#if secondarySeriesId}
+                      <div class="compact-two-series">
+                        <div class="compact-two-series-grid">
+                          <span class="compact-grid-empty" aria-hidden="true"
+                            ></span
+                          >
+                          <p class="compact-grid-header">Short term</p>
+                          <p class="compact-grid-header">Long term</p>
+
+                          <p class="compact-series-name">
+                            {metadataBySeries[seriesId]?.title ?? seriesId}
+                          </p>
+                          <div class="compact-two-series-cell">
+                            <ChangeIndicator
+                              {seriesId}
+                              {metadataBySeries}
+                              showLabel={false}
+                            />
+                          </div>
+                          <div class="compact-two-series-cell">
+                            <ChangeIndicator
+                              {seriesId}
+                              {metadataBySeries}
+                              label="year"
+                              showLabel={false}
+                            />
+                          </div>
+                          <p class="compact-series-name">
+                            {metadataBySeries[secondarySeriesId]?.title ??
+                              secondarySeriesId}
+                          </p>
+                          <div class="compact-two-series-cell">
+                            <ChangeIndicator
+                              seriesId={secondarySeriesId}
+                              {metadataBySeries}
+                              showLabel={false}
+                            />
+                          </div>
+                          <div class="compact-two-series-cell">
+                            <ChangeIndicator
+                              seriesId={secondarySeriesId}
+                              {metadataBySeries}
+                              label="year"
+                              showLabel={false}
+                            />
+                          </div>
+                        </div>
+                        <p
+                          class="compact-change-date"
+                          style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3;"
+                        >
+                          Change up to {metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "monthly" ||
+                          metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "month" ||
+                          metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "quarterly" ||
+                          metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "quarter"
+                            ? row.date.toLocaleDateString("en-GB", {
+                                year: "numeric",
+                                month: "long",
+                              })
+                            : row.date.toLocaleDateString("en-GB", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                        </p>
                       </div>
-                    </div>
+                    {:else}
+                      <div class="compact-change">
+                        <p
+                          style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3; text-align:right;"
+                        >
+                          Change up to<br />{metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "monthly" ||
+                          metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "month" ||
+                          metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "quarterly" ||
+                          metadataBySeries[
+                            seriesId
+                          ]?.indicator_period?.toLowerCase() === "quarter"
+                            ? row.date.toLocaleDateString("en-GB", {
+                                year: "numeric",
+                                month: "long",
+                              })
+                            : row.date.toLocaleDateString("en-GB", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                        </p>
+                        <div class="compact-indicator compact-indicator--short">
+                          <ChangeIndicator {seriesId} {metadataBySeries} />
+                        </div>
+                      </div>
+                      <div class="updated-flag-container">
+                        <div class="compact-indicator compact-indicator--long">
+                          <ChangeIndicator
+                            {seriesId}
+                            {metadataBySeries}
+                            label="year"
+                          />
+                        </div>
+                      </div>
+                    {/if}
                   {:else}
                     <div class="header-spacer" />
                   {/if}
-                  <div class="updated-flag-container">
-                    {#if !expandedCards[seriesId]}
-                      <div class="compact-indicator compact-indicator--long">
-                        <ChangeIndicator
-                          {seriesId}
-                          {metadataBySeries}
-                          label="year"
-                        />
-                      </div>
-                    {/if}
-                  </div>
                 </div>
               </div>
               <div
@@ -885,9 +967,13 @@
                 class:hidden={!expandedCards[seriesId]}
               >
                 <p class="subtitle">
-                  {card.cardDescription || metadataBySeries[seriesId]?.description}
+                  {card.cardDescription ||
+                    metadataBySeries[seriesId]?.description}
                 </p>
-                <div class="layout-container">
+                <div
+                  class="layout-container"
+                  class:layout-container--two-series={secondarySeriesId}
+                >
                   <div class="chart">
                     <LineChartSimple
                       data={row.full_series}
@@ -919,69 +1005,142 @@
                       }}
                       overlaySeries={card.seriesEntries
                         .slice(1)
-                        .map(({ seriesId: overlaySeriesId, row: overlayRow }, idx) => ({
-                          series_id: overlaySeriesId,
-                          data: overlayRow.full_series,
-                          lineColor: idx % 2 === 0 ? "#27a0cc" : "#118C7B",
-                          thin:
-                            metadataBySeries[overlaySeriesId]?.thin_line ===
-                            "TRUE",
-                        }))}
+                        .map(
+                          (
+                            { seriesId: overlaySeriesId, row: overlayRow },
+                            idx
+                          ) => ({
+                            series_id: overlaySeriesId,
+                            data: overlayRow.full_series,
+                            lineColor: idx % 2 === 0 ? "#27a0cc" : "#118C7B",
+                            thin:
+                              metadataBySeries[overlaySeriesId]?.thin_line ===
+                              "TRUE",
+                          })
+                        )}
                       showYearDividersAtDomainEdges={false}
                     />
                   </div>
-                  <div class="indicators-container">
+                  <div
+                    class="indicators-container"
+                    class:indicators-container--two-series={secondarySeriesId}
+                  >
                     <div class="indicators-header">
-                      <p class="latest-value-period">
-                        {formatLatestTimePeriod(seriesId, row)}
-                      </p>
-                      <p class="latest-value-series-title latest-value-series-title-primary">
+                      <p
+                        class="latest-value-series-title latest-value-series-title-primary"
+                      >
                         {metadataBySeries[seriesId]?.title ?? seriesId}
                       </p>
                       <p class="latest-value-number">
                         {formatLatestValue(seriesId, row)}
-                        <span
-                          class="latest-value-marker latest-value-marker-circle"
-                          aria-hidden="true"
-                        />
+                        {#if secondarySeriesId}
+                          <span
+                            class="latest-value-marker latest-value-marker-circle"
+                            aria-hidden="true"
+                          />
+                        {/if}
                       </p>
-                      {#if card.seriesEntries[1]}
-                        <p class="latest-value-series-title latest-value-series-title-secondary">
-                          {metadataBySeries[card.seriesEntries[1].seriesId]
-                            ?.title ?? card.seriesEntries[1].seriesId}
+                      {#if secondarySeriesId && secondaryRow}
+                        <p
+                          class="latest-value-series-title latest-value-series-title-secondary"
+                        >
+                          {metadataBySeries[secondarySeriesId]?.title ??
+                            secondarySeriesId}
                         </p>
-                        <p class="latest-value-number latest-value-number-secondary">
-                          {formatLatestValue(
-                            card.seriesEntries[1].seriesId,
-                            card.seriesEntries[1].row
-                          )}
+                        <p
+                          class="latest-value-number latest-value-number-secondary"
+                        >
+                          {formatLatestValue(secondarySeriesId, secondaryRow)}
                           <span
                             class="latest-value-marker latest-value-marker-diamond"
                             aria-hidden="true"
                           />
                         </p>
                       {/if}
+                      <p class="latest-value-period">
+                        {formatLatestTimePeriod(seriesId, row)}
+                      </p>
                     </div>
-                    <div class="indicators-row">
-                      {#each [{ label: undefined }, { label: "year" }] as indicator}
-                        <div class="indicators-child">
-                          <ChangeIndicator
-                            {seriesId}
-                            {metadataBySeries}
-                            label={indicator.label}
-                            showSinceDate={true}
-                            comparisonDate={indicator.label === "year"
-                              ? row.year_over_year_date
-                              : row.period_over_period_date}
-                            comparisonValueText={formatComparisonValueText(
-                              seriesId,
-                              row,
-                              indicator.label
-                            )}
-                          />
+                    {#if secondarySeriesId && secondaryRow}
+                      <div class="two-series-indicators-row">
+                        <div
+                          class="indicators-child two-series-indicators-child two-series-indicators-child-primary"
+                        >
+                          <p
+                            class="two-series-indicators-group-title two-series-indicators-group-title-primary"
+                          >
+                            {metadataBySeries[seriesId]?.title ?? seriesId}
+                          </p>
+                          {#each [{ label: undefined }, { label: "year" }] as indicator}
+                            <div class="indicator-stack-item">
+                              <ChangeIndicator
+                                {seriesId}
+                                {metadataBySeries}
+                                label={indicator.label}
+                                showSinceDate={true}
+                                comparisonDate={indicator.label === "year"
+                                  ? row.year_over_year_date
+                                  : row.period_over_period_date}
+                                comparisonValueText={formatComparisonValueText(
+                                  seriesId,
+                                  row,
+                                  indicator.label
+                                )}
+                              />
+                            </div>
+                          {/each}
                         </div>
-                      {/each}
-                    </div>
+                        <div
+                          class="indicators-child two-series-indicators-child two-series-indicators-child-secondary"
+                        >
+                          <p
+                            class="two-series-indicators-group-title two-series-indicators-group-title-secondary"
+                          >
+                            {metadataBySeries[secondarySeriesId]?.title ??
+                              secondarySeriesId}
+                          </p>
+                          {#each [{ label: undefined }, { label: "year" }] as indicator}
+                            <div class="indicator-stack-item">
+                              <ChangeIndicator
+                                seriesId={secondarySeriesId}
+                                {metadataBySeries}
+                                label={indicator.label}
+                                showSinceDate={true}
+                                comparisonDate={indicator.label === "year"
+                                  ? secondaryRow.year_over_year_date
+                                  : secondaryRow.period_over_period_date}
+                                comparisonValueText={formatComparisonValueText(
+                                  secondarySeriesId,
+                                  secondaryRow,
+                                  indicator.label
+                                )}
+                              />
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="indicators-row">
+                        {#each [{ label: undefined }, { label: "year" }] as indicator}
+                          <div class="indicators-child">
+                            <ChangeIndicator
+                              {seriesId}
+                              {metadataBySeries}
+                              label={indicator.label}
+                              showSinceDate={true}
+                              comparisonDate={indicator.label === "year"
+                                ? row.year_over_year_date
+                                : row.period_over_period_date}
+                              comparisonValueText={formatComparisonValueText(
+                                seriesId,
+                                row,
+                                indicator.label
+                              )}
+                            />
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
                   </div>
                 </div>
                 <p class="get-data-link">
@@ -1509,7 +1668,7 @@
     line-height: 1.2;
     color: #666;
     font-weight: 400;
-    margin: 0 0 8px 0;
+    margin: 10px 0 8px 0;
   }
 
   .card .latest-value-series-title {
@@ -1540,6 +1699,10 @@
     padding: 0;
     margin: 0;
     position: relative;
+  }
+
+  .card-header--top-aligned {
+    align-items: flex-start;
   }
 
   .card-header-right {
@@ -1625,6 +1788,70 @@
     gap: 12px;
   }
 
+  .compact-two-series {
+    --compact-series-col-width: 180px;
+    --compact-grid-col-gap: 14px;
+    display: grid;
+    grid-template-columns: var(--compact-series-col-width) max-content max-content;
+    column-gap: var(--compact-grid-col-gap);
+    row-gap: 0;
+    align-items: center;
+    justify-content: start;
+  }
+
+  .card.collapsed .compact-two-series {
+    row-gap: 6px;
+  }
+
+  .compact-two-series-grid {
+    display: contents;
+  }
+
+  .compact-grid-empty {
+    display: block;
+  }
+
+  .card .compact-grid-header {
+    margin: 10px 0 0 0;
+    font-size: 14px;
+    line-height: 1.2;
+    color: #222;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .card .compact-series-name {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.2;
+    color: #222;
+    font-weight: 600;
+    align-self: center;
+    white-space: normal;
+    text-align: right;
+    justify-self: end;
+  }
+
+  .compact-two-series-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .card .compact-change-date {
+    grid-column: 2 / 4;
+    justify-self: start;
+    margin: 0;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.3;
+    transform: none;
+    text-align: left;
+    white-space: nowrap;
+    padding-top: 8px;
+  }
+
   .compact-change p {
     align-self: center;
     transform: translateY(10px);
@@ -1708,6 +1935,51 @@
     overflow-wrap: break-word;
   }
 
+  .two-series-indicators-row {
+    display: grid;
+    grid-template-columns:
+      minmax(0, var(--two-series-row2-col-a, 1fr))
+      minmax(0, var(--two-series-row2-col-b, 1fr));
+    gap: 16px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .two-series-indicators-child {
+    padding-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 16px;
+    row-gap: 4px;
+    align-items: flex-start;
+  }
+
+  .card .two-series-indicators-group-title {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    font-weight: 600;
+    color: #3a3a3a;
+  }
+
+  .card .two-series-indicators-group-title-primary {
+    color: #3a3a3a;
+  }
+
+  .card .two-series-indicators-group-title-secondary {
+    color: #3a3a3a;
+  }
+
+  .two-series-indicators-child :global(.text-indicator-sm) {
+    color: #666;
+  }
+
+  .two-series-indicators-child .indicator-stack-item {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   .card .get-data-link {
     padding-top: 15px;
     margin-top: 8px;
@@ -1768,6 +2040,42 @@
       flex: 2 1 0;
       min-width: 0;
       order: 1;
+    }
+
+    .layout-container--two-series {
+      --two-series-row1-col-a: 1fr;
+      --two-series-row1-col-b: 1fr;
+      --two-series-row2-col-a: 1fr;
+      --two-series-row2-col-b: 1fr;
+      display: grid;
+      grid-template-columns:
+        minmax(0, var(--two-series-row1-col-a))
+        minmax(0, var(--two-series-row1-col-b));
+      column-gap: 16px;
+      row-gap: 16px;
+      align-items: start;
+    }
+
+    .layout-container--two-series .chart {
+      grid-column: 2;
+      grid-row: 1;
+      min-width: 0;
+      order: initial;
+    }
+
+    .layout-container--two-series .indicators-container--two-series {
+      display: contents;
+    }
+
+    .layout-container--two-series .indicators-header {
+      grid-column: 1;
+      grid-row: 1;
+      min-width: 0;
+    }
+
+    .layout-container--two-series .two-series-indicators-child-primary,
+    .layout-container--two-series .two-series-indicators-child-secondary {
+      min-width: 0;
     }
   }
 
@@ -1883,8 +2191,22 @@
       gap: 12px;
     }
 
+    .compact-two-series {
+      --compact-series-col-width: 150px;
+      --compact-grid-col-gap: 10px;
+    }
+
+    .compact-series-name {
+      font-size: 13px;
+    }
+
     .compact-change p {
       text-align: left !important;
+    }
+
+    .compact-change-date {
+      text-align: left !important;
+      transform: none;
     }
 
     .compact-indicator--short {
@@ -1907,6 +2229,21 @@
     .layout-container {
       gap: 24px;
       margin-top: 20px;
+    }
+
+    .layout-container--two-series {
+      display: flex;
+    }
+
+    .layout-container--two-series .two-series-indicators-row {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .layout-container--two-series .two-series-indicators-child {
+      padding-top: 6px;
+      gap: 12px;
     }
 
     .indicators-header {

@@ -21,6 +21,8 @@
   export let increaseBackground = "#D2E2CB";
   export let increaseArrowColor = "#195000";
   export let decreaseArrowColor = "#AD001F";
+  export let notAssessedTextColor = "#656565";
+  export let notAssessedBorderColor = "#DADADA";
   function normalizeAssessment(value) {
     const v = String(value ?? "")
       .trim()
@@ -29,6 +31,7 @@
     if (v === "improved") return "improved";
     if (v === "worsened") return "worsened";
     if (v === "no change") return "no change";
+    if (v === "not assessed" || v === "not-assessed") return "not assessed";
     return null;
   }
 
@@ -69,28 +72,35 @@
 
 {#if !assessment}
   <div class="indicator-area no-change" style="background:{noChangeBackground}">
-    Not available
+    <span class="indicator-label">Not available</span>
   </div>
 {:else if assessment === "no change"}
   <div
     class="indicator-area no-change"
     style="background:{noChangeBackground}; color:{noChangeTextColor}"
   >
-    No change
+    <span class="indicator-label">No change</span>
   </div>
 {:else if assessment === "improved"}
   <div
     class="indicator-area increase"
     style="background:{increaseBackground}; color:{increaseArrowColor}"
   >
-    Improved
+    <span class="indicator-label">Improved</span>
+  </div>
+{:else if assessment === "not assessed"}
+  <div
+    class="indicator-area not-assessed"
+    style="color:{notAssessedTextColor}; --not-assessed-border-color:{notAssessedBorderColor}"
+  >
+    <span class="indicator-label">Not assessed</span>
   </div>
 {:else}
   <div
     class="indicator-area decrease"
     style="background:{decreaseBackground}; color:{decreaseArrowColor}"
   >
-    Worsened
+    <span class="indicator-label">Worsened</span>
   </div>
 {/if}
 
@@ -114,10 +124,36 @@
     font-weight: 700;
     padding: 10px 13px 10px 10px;
     margin-top: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    display: inline-grid;
+    place-items: center;
     vertical-align: middle;
+    box-sizing: border-box;
+  }
+
+  .indicator-area::before {
+    content: "Not assessed";
+    grid-area: 1 / 1;
+    visibility: hidden;
+    white-space: nowrap;
+  }
+
+  .indicator-label {
+    grid-area: 1 / 1;
+    white-space: nowrap;
+  }
+
+  .not-assessed {
+    position: relative;
+    background: transparent;
+  }
+
+  .not-assessed::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--not-assessed-border-color, #DADADA);
+    pointer-events: none;
+    box-sizing: border-box;
   }
 
   .text-indicator-period {
