@@ -9,6 +9,7 @@
     computeYDomainFromTransformedData,
   } from "$lib/yAxisDomain.js";
   import { toBoolean, toNonNegativeIntOrNull } from "$lib/coerce.js";
+  import { formatChartEndValue } from "$lib/chartValueFormat.js";
 
   // Props (existing)
   export let data = [];
@@ -153,27 +154,13 @@
   })();
 
   function formatLastValue(val) {
-    if (val === null || val === undefined) return "";
-    const numeric = typeof val === "number" ? val : Number(val);
-    if (!Number.isFinite(numeric)) return "";
-
-    if (customDpEnabled && dpOverride !== null) {
-      if (units_chart === "percentage") {
-        const dp = dpOverride;
-        const rounded = Math.round(numeric * 10 ** dp) / 10 ** dp;
-        return format(`.${dp}%`)(rounded / 100);
-      }
-      return format(`,.${dpOverride}f`)(numeric);
-    }
-
-    if (units_chart === "percentage") {
-      const hasDecimal = yTicks.some((t) => t % 1 !== 0);
-      const dp = numeric < 20 ? 1 : hasDecimal ? 1 : 0;
-      const rounded = Math.round(numeric * 10 ** dp) / 10 ** dp;
-      return format(`.${dp}%`)(rounded / 100);
-    }
-
-    return numeric < 20 ? format(",.1f")(numeric) : formatValue(numeric);
+    const hasDecimalTicks = yTicks.some((t) => t % 1 !== 0);
+    return formatChartEndValue(val, {
+      unitsChart: units_chart,
+      customDpEnabled,
+      dpOverride,
+      hasDecimalTicks,
+    });
   }
 
   const formatLastDate = timeFormat("%-d %b");

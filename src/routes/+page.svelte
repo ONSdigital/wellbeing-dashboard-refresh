@@ -18,7 +18,12 @@
   import insertHeader from "$lib/insert-header.js";
   import { scaleLinear } from "d3-scale";
   import { makeDataFile } from "$lib/dataDownload.js";
-  import { toBoolean, toNumberOrNaN } from "$lib/coerce.js";
+  import {
+    toBoolean,
+    toNonNegativeIntOrNull,
+    toNumberOrNaN,
+  } from "$lib/coerce.js";
+  import { formatChartEndValue } from "$lib/chartValueFormat.js";
   import { formatDateForCsv, formatNumberForCsv, escapeCsv } from "$lib/csv.js";
   import {
     getDatasetTitle,
@@ -132,16 +137,152 @@
     );
   }
 
-  function getChangeValue(row, isPercentage) {
-    return isPercentage
-      ? row.period_over_period_percent
-      : row.period_over_period_change;
+  function formatLatestValue(seriesId, row) {
+    const meta = metadataBySeries?.[seriesId] ?? {};
+    const transformedData = computeTransformedData(row?.full_series, {
+      xKey: "date",
+      yKey: "num_uk",
+      thousandsBoolean: toBoolean(meta.thousands),
+      startDate: chartStartDate,
+    });
+
+    if (!Array.isArray(transformedData) || transformedData.length === 0) {
+      return "N/A";
+    }
+
+    const lastPoint = transformedData[transformedData.length - 1];
+    const lastValue = toNumberOrNaN(lastPoint?.num_uk);
+    if (Number.isNaN(lastValue)) return "N/A";
+
+    const stats = computeYDomainFromTransformedData({
+      transformedData,
+      yKey: "num_uk",
+      indexBoolean: toBoolean(meta.index),
+      yMinMode: meta?.yMinMode ?? "auto",
+      yPadding: meta?.yPadding ?? 0.1,
+      niceCount: 5,
+    });
+
+    const yScale = scaleLinear()
+      .domain([stats.paddedMin, stats.niceMax])
+      .nice();
+    const yTicks = yScale.ticks(5);
+    const hasDecimalTicks = yTicks.some((t) => t % 1 !== 0);
+
+    const formatted = formatChartEndValue(lastValue, {
+      unitsChart: meta?.units_chart,
+      customDpEnabled: toBoolean(meta?.custom_dp_chart ?? meta?.custom_dp),
+      dpOverride: toNonNegativeIntOrNull(meta?.dp_chart ?? meta?.dp),
+      hasDecimalTicks,
+    });
+
+    return formatted || "N/A";
   }
 
-  function getYearOverYearChange(row, isPercentage) {
-    return isPercentage
-      ? row.year_over_year_percent
-      : row.year_over_year_change;
+  function formatComparisonValueText(seriesId, row, label) {
+    const comparisonDate =
+      label === "year" ? row?.year_over_year_date : row?.period_over_period_date;
+    const targetDate =
+      comparisonDate instanceof Date ? comparisonDate : new Date(comparisonDate);
+    if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) {
+      return "";
+    }
+
+    const meta = metadataBySeries?.[seriesId] ?? {};
+    const transformedData = computeTransformedData(row?.full_series, {
+      xKey: "date",
+      yKey: "num_uk",
+      thousandsBoolean: toBoolean(meta.thousands),
+      startDate: chartStartDate,
+    });
+
+    if (!Array.isArray(transformedData) || transformedData.length === 0) {
+      return "";
+    }
+
+    const comparisonPoint = transformedData.find((d) => {
+      const dDate = d?.date;
+      return dDate instanceof Date && dDate.getTime() === targetDate.getTime();
+    });
+
+    let comparisonValue = toNumberOrNaN(comparisonPoint?.num_uk);
+
+    // Fallback to latest minus change when the exact comparison point is unavailable.
+    if (Number.isNaN(comparisonValue)) {
+      const lastPoint = transformedData[transformedData.length - 1];
+      const lastValue = toNumberOrNaN(lastPoint?.num_uk);
+      const rawChange =
+        label === "year"
+          ? toNumberOrNaN(row?.year_over_year_change)
+          : toNumberOrNaN(row?.period_over_period_change);
+      const scaledChange = toBoolean(meta.thousands) ? rawChange / 1000 : rawChange;
+
+      if (!Number.isNaN(lastValue) && !Number.isNaN(scaledChange)) {
+        comparisonValue = lastValue - scaledChange;
+      }
+    }
+
+    if (Number.isNaN(comparisonValue)) return "";
+
+    const stats = computeYDomainFromTransformedData({
+      transformedData,
+      yKey: "num_uk",
+      indexBoolean: toBoolean(meta.index),
+      yMinMode: meta?.yMinMode ?? "auto",
+      yPadding: meta?.yPadding ?? 0.1,
+      niceCount: 5,
+    });
+
+    const yScale = scaleLinear()
+      .domain([stats.paddedMin, stats.niceMax])
+      .nice();
+    const yTicks = yScale.ticks(5);
+    const hasDecimalTicks = yTicks.some((t) => t % 1 !== 0);
+
+    const formatted = formatChartEndValue(comparisonValue, {
+      unitsChart: meta?.units_chart,
+      customDpEnabled: toBoolean(meta?.custom_dp_chart ?? meta?.custom_dp),
+      dpOverride: toNonNegativeIntOrNull(meta?.dp_chart ?? meta?.dp),
+      hasDecimalTicks,
+    });
+
+    return formatted || "";
+  }
+
+  function isMonthOrQuarterPeriod(period) {
+    const p = period?.toLowerCase?.();
+    return (
+      p === "monthly" || p === "month" || p === "quarterly" || p === "quarter"
+    );
+  }
+
+  function formatLatestTimePeriod(seriesId, row) {
+    const meta = metadataBySeries?.[seriesId] ?? {};
+    const transformedData = computeTransformedData(row?.full_series, {
+      xKey: "date",
+      yKey: "num_uk",
+      thousandsBoolean: toBoolean(meta.thousands),
+      startDate: chartStartDate,
+    });
+
+    if (!Array.isArray(transformedData) || transformedData.length === 0) {
+      return "N/A";
+    }
+
+    const lastPoint = transformedData[transformedData.length - 1];
+    const lastDate = lastPoint?.date;
+    if (!(lastDate instanceof Date) || Number.isNaN(lastDate.getTime())) {
+      return "N/A";
+    }
+
+    if (isMonthOrQuarterPeriod(meta?.indicator_period)) {
+      return lastDate.toLocaleDateString("en-GB", { month: "long" });
+    }
+
+    return lastDate.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    });
   }
 
   function getTimePeriod(metadata) {
@@ -656,31 +797,6 @@
                     <span class="card-title-text"
                       >{metadataBySeries[seriesId]?.title ?? seriesId}</span
                     >
-                    {#if shouldShowUpdateFlag(seriesId)}
-                      <span class="screen-reader-only"
-                        >{getUpdateFlagSrText(seriesId)}</span
-                      >
-                      {#if !isNewIndicator(seriesId)}
-                        <span class="updated-dot-inline" aria-hidden="true" />
-                      {:else}
-                        <span
-                          class="updated-new-inline updated-flag--new-indicator"
-                          aria-hidden="true">{getUpdateFlagText(seriesId)}</span
-                        >
-                      {/if}
-                      <span class="updated-flag-top-row">
-                        <span
-                          class="updated-flag-top"
-                          class:updated-flag--new-indicator={isNewIndicator(
-                            seriesId
-                          )}
-                          ><span
-                            class="updated-dot"
-                            aria-hidden
-                          />{getUpdateFlagText(seriesId)}</span
-                        >
-                      </span>
-                    {/if}
                   </h3>
                 </div>
                 <div class="card-header-right">
@@ -689,10 +805,7 @@
                       <p
                         style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3; text-align:right;"
                       >
-                        <span style="text-transform: capitalize;"
-                          >{getTimePeriod(metadataBySeries[seriesId])}</span
-                        >
-                        up to<br />{metadataBySeries[
+                        Change up to<br />{metadataBySeries[
                           seriesId
                         ]?.indicator_period?.toLowerCase() === "monthly" ||
                         metadataBySeries[
@@ -714,32 +827,22 @@
                               day: "numeric",
                             })}
                       </p>
-                      <ChangeIndicator
-                        {seriesId}
-                        {metadataBySeries}
-                        change={getChangeValue(
-                          row,
-                          metadataBySeries[seriesId]?.units === "percentage"
-                        )}
-                        units={metadataBySeries[seriesId]?.units}
-                        showLabel={false}
-                      />
+                      <div class="compact-indicator compact-indicator--short">
+                        <ChangeIndicator {seriesId} {metadataBySeries} />
+                      </div>
                     </div>
                   {:else}
                     <div class="header-spacer" />
                   {/if}
                   <div class="updated-flag-container">
-                    {#if shouldShowUpdateFlag(seriesId)}
-                      <span
-                        class="updated-flag"
-                        class:updated-flag--new-indicator={isNewIndicator(
-                          seriesId
-                        )}
-                        ><span
-                          class="updated-dot"
-                          aria-hidden
-                        />{getUpdateFlagText(seriesId)}</span
-                      >
+                    {#if !expandedCards[seriesId]}
+                      <div class="compact-indicator compact-indicator--long">
+                        <ChangeIndicator
+                          {seriesId}
+                          {metadataBySeries}
+                          label="year"
+                        />
+                      </div>
                     {/if}
                   </div>
                 </div>
@@ -786,112 +889,93 @@
                   </div>
                   <div class="indicators-container">
                     <div class="indicators-header">
-                      <h4>
-                        Change in {metadataBySeries[seriesId]?.units}
-                      </h4>
-                      <p style="font-weight:normal; font-size:14px; color:#666">
-                        up to {metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "monthly" ||
-                        metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "month" ||
-                        metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "quarterly" ||
-                        metadataBySeries[
-                          seriesId
-                        ]?.indicator_period?.toLowerCase() === "quarter"
-                          ? row.date.toLocaleDateString("en-GB", {
-                              year: "numeric",
-                              month: "long",
-                            })
-                          : row.date.toLocaleDateString("en-GB", {
-                              month: "long",
-                              day: "numeric",
-                            })}
+                      <p class="latest-value-number">
+                        {formatLatestValue(seriesId, row)}
+                      </p>
+                      <p class="latest-value-period">
+                        {formatLatestTimePeriod(seriesId, row)}
                       </p>
                     </div>
                     <div class="indicators-row">
-                      {#each [{ label: undefined, getValue: (r, isP) => getChangeValue(r, isP) }, { label: "year", getValue: (r, isP) => getYearOverYearChange(r, isP) }] as indicator}
+                      {#each [{ label: undefined }, { label: "year" }] as indicator}
                         <div class="indicators-child">
                           <ChangeIndicator
                             {seriesId}
                             {metadataBySeries}
                             label={indicator.label}
-                            change={indicator.getValue(
+                            showSinceDate={true}
+                            comparisonDate={indicator.label === "year"
+                              ? row.year_over_year_date
+                              : row.period_over_period_date}
+                            comparisonValueText={formatComparisonValueText(
+                              seriesId,
                               row,
-                              metadataBySeries[seriesId]?.units === "percentage"
+                              indicator.label
                             )}
-                            units={metadataBySeries[seriesId]?.units}
                           />
                         </div>
                       {/each}
                     </div>
-                    <p class="get-data-link">
-                      <a
-                        href={metadataBySeries[seriesId]?.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        data-ga-event="navigation-click"
-                        data-ga-navigation-type="to-data-download"
-                        data-ga-link-text={getDatasetLinkTextById(seriesId)}
-                        data-ga-click-content-group={destinationTaxonomy.clickContentGroup}
-                        data-ga-click-content-type={destinationTaxonomy.clickContentType}
-                        data-ga-click-content-theme={destinationTaxonomy.clickContentTheme}
-                        on:click={() =>
-                          trackDataLinkClick(
-                            seriesId,
-                            section.title,
-                            String(sectionIndex + 1)
-                          )}
-                      >
-                        Go to the dataset for {getDatasetDisplayTitleById(
-                          seriesId
-                        )}
-                        <span class="screen-reader-only"
-                          >(opens in new tab)</span
-                        >
-                        <svg
-                          class="external-icon"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M12 8.66667V12.6667C12 13.0203 11.8595 13.3594 11.6095 13.6095C11.3594 13.8595 11.0203 14 10.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V5.33333C2 4.97971 2.14048 4.64057 2.39052 4.39052C2.64057 4.14048 2.97971 4 3.33333 4H7.33333"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          />
-                          <path
-                            d="M10 2H14V6"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          />
-                          <path
-                            d="M6.66666 9.33333L14 2"
-                            stroke="currentColor"
-                            stroke-width="1.5"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                          />
-                        </svg>
-                      </a>
-                      {#if metadataBySeries[seriesId]?.data_source}
-                        <span class="data-source">
-                          Source: {metadataBySeries[seriesId].data_source}
-                        </span>
-                      {/if}
-                    </p>
                   </div>
                 </div>
+                <p class="get-data-link">
+                  <a
+                    href={metadataBySeries[seriesId]?.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-ga-event="navigation-click"
+                    data-ga-navigation-type="to-data-download"
+                    data-ga-link-text={getDatasetLinkTextById(seriesId)}
+                    data-ga-click-content-group={destinationTaxonomy.clickContentGroup}
+                    data-ga-click-content-type={destinationTaxonomy.clickContentType}
+                    data-ga-click-content-theme={destinationTaxonomy.clickContentTheme}
+                    on:click={() =>
+                      trackDataLinkClick(
+                        seriesId,
+                        section.title,
+                        String(sectionIndex + 1)
+                      )}
+                  >
+                    Go to the dataset for {getDatasetDisplayTitleById(seriesId)}
+                    <span class="screen-reader-only">(opens in new tab)</span>
+                    <svg
+                      class="external-icon"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M12 8.66667V12.6667C12 13.0203 11.8595 13.3594 11.6095 13.6095C11.3594 13.8595 11.0203 14 10.6667 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V5.33333C2 4.97971 2.14048 4.64057 2.39052 4.39052C2.64057 4.14048 2.97971 4 3.33333 4H7.33333"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M10 2H14V6"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M6.66666 9.33333L14 2"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </a>
+                  {#if metadataBySeries[seriesId]?.data_source}
+                    <span class="data-source">
+                      Source: {metadataBySeries[seriesId].data_source}
+                    </span>
+                  {/if}
+                </p>
               </div>
             </button>
           {/each}
@@ -1284,14 +1368,6 @@
     margin: 0 0 0px 0;
   }
 
-  .card h4 {
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1.3;
-    color: #222;
-    margin: 0;
-  }
-
   .card p {
     font-size: 1rem;
     color: #222;
@@ -1325,6 +1401,22 @@
   .indicators-header {
     font-weight: bold;
     padding: 0;
+  }
+
+  .card .latest-value-number {
+    font-size: 32pt;
+    line-height: 1.1;
+    color: #206095;
+    font-weight: 700;
+    margin: 0 0 4px 0;
+  }
+
+  .card .latest-value-period {
+    font-size: 0.95rem;
+    line-height: 1.2;
+    color: #206095;
+    font-weight: 400;
+    margin: 0 0 8px 0;
   }
 
   .indicators-header p {
@@ -1427,10 +1519,37 @@
 
   .compact-change p {
     align-self: center;
+    transform: translateY(10px);
   }
 
   .compact-change :global(.indicator-area) {
     align-self: center;
+  }
+
+  .compact-indicator {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .compact-indicator--short {
+    align-items: flex-start;
+  }
+
+  .compact-indicator--long {
+    align-items: flex-start;
+  }
+
+  .compact-indicator :global(.text-indicator-sm) {
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #666;
+    line-height: 1.2;
+  }
+
+  .compact-indicator :global(.indicator-area) {
+    margin-top: 0;
   }
 
   .updated-flag-container {
@@ -1442,25 +1561,20 @@
     justify-content: flex-end;
   }
 
-  .updated-flag {
-    font-size: 0.85rem;
-    color: #666;
-    font-weight: 400;
-    white-space: nowrap;
+  .card.collapsed .updated-flag-container {
+    position: static;
+    top: auto;
+    right: auto;
+    transform: none;
   }
 
-  .updated-dot {
-    display: inline-block;
-    width: 12px; /* diameter 12px => radius 6px */
-    height: 12px;
-    border-radius: 6px;
-    background-color: #16a34a; /* green */
-    margin-right: 6px;
-    flex: 0 0 auto;
+  .card.collapsed .card-header-right {
+    margin-right: 0;
+    justify-content: flex-end;
   }
 
-  .updated-dot-inline {
-    display: none; /* hidden on desktop */
+  .updated-flag-container :global(.indicator-area) {
+    margin-top: 0;
   }
 
   .screen-reader-only {
@@ -1473,41 +1587,6 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border-width: 0;
-  }
-
-  .updated-flag-top-row {
-    display: none; /* hidden by default, shown only on intermediate screens */
-  }
-
-  .updated-flag-top {
-    font-size: 0.85rem;
-    color: #666;
-    font-weight: 400;
-    white-space: nowrap;
-    display: inline;
-  }
-
-  .updated-flag--new-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 7px;
-    border-radius: 4px;
-    border: 1px solid #16a34a;
-    background-color: #16a34a;
-    color: #fff;
-    font-weight: 600;
-  }
-
-  .updated-flag--new-indicator .updated-dot {
-    display: none;
-  }
-
-  .updated-new-inline {
-    display: none;
-    margin-left: 6px;
-    font-size: 0.85rem;
-    vertical-align: middle;
   }
 
   .indicators-row {
@@ -1574,11 +1653,13 @@
     .chart {
       flex: 1 1 30%;
       min-width: 0;
+      order: 2;
     }
 
     .indicators-container {
       flex: 2 1 0;
       min-width: 0;
+      order: 1;
     }
   }
 
@@ -1698,6 +1779,14 @@
       text-align: left !important;
     }
 
+    .compact-indicator--short {
+      align-items: flex-end;
+    }
+
+    .compact-indicator--long {
+      align-items: flex-start;
+    }
+
     .updated-flag-container {
       display: none;
     }
@@ -1731,11 +1820,6 @@
       justify-content: space-between;
     }
 
-    .updated-flag-top-row {
-      display: inline;
-      margin-left: 8px;
-    }
-
     .card-header-right {
       justify-content: flex-start;
     }
@@ -1763,36 +1847,6 @@
     .card-header-right {
       justify-content: space-between;
       gap: 8px;
-    }
-
-    .updated-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 5px;
-    }
-
-    .updated-dot-inline {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 5px;
-      background-color: #16a34a;
-      margin-left: 4px;
-      vertical-align: middle;
-      left: -2px;
-    }
-
-    .updated-new-inline {
-      display: inline-flex;
-      margin-left: 8px;
-    }
-
-    .updated-new-inline.updated-flag--new-indicator {
-      font-size: 14px;
-      padding: 2px 5px 3px;
-      border-radius: 3px;
-      line-height: 1.1;
-      white-space: nowrap;
     }
   }
 
