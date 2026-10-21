@@ -9,7 +9,6 @@
     computeYDomainFromTransformedData,
   } from "$lib/yAxisDomain.js";
   import { toBoolean, toNonNegativeIntOrNull } from "$lib/coerce.js";
-  import { formatChartEndValue } from "$lib/chartValueFormat.js";
 
   // Props (existing)
   export let data = [];
@@ -203,19 +202,6 @@
     const hasDecimal = yTicks.some((t) => t % 1 !== 0);
     return format(hasDecimal ? ".1%" : ".0%");
   })();
-
-  function formatLastValue(val) {
-    const hasDecimalTicks = yTicks.some((t) => t % 1 !== 0);
-    return formatChartEndValue(val, {
-      unitsChart: units_chart,
-      customDpEnabled,
-      dpOverride,
-      hasDecimalTicks,
-    });
-  }
-
-  const formatLastDate = timeFormat("%-d %b");
-  const formatLastDateMonthly = timeFormat("%B");
 
   function isMonthOrQuarterPeriod(period) {
     const p = period?.toLowerCase?.();
@@ -547,42 +533,15 @@
               stroke-width="{strokeWidth}px"
             />
 
-            <!-- Last point marker/label: value (top) + date (bottom) -->
             {#if transformedData.length}
               {@const lastPoint = transformedData[transformedData.length - 1]}
-              {@const lastX = x(lastPoint[xKey])}
-              {@const lastY = y(lastPoint[yKey])}
-              {@const lastDateStr = formatLastDate(lastPoint[xKey])}
-
               <circle
                 class="line-point"
-                cx={lastX}
-                cy={lastY}
+                cx={x(lastPoint[xKey])}
+                cy={y(lastPoint[yKey])}
                 r="4"
                 fill={lineColor}
               />
-
-              <!-- Two-line label placed to the right of the last point -->
-              <text
-                x={lastX + 8}
-                y={lastY + 4}
-                style="fill: {lineColor}; font-weight: 600;"
-              >
-                <!-- top line: value -->
-                <tspan x={lastX + 8} dy="0">
-                  {formatLastValue(lastPoint[yKey])}
-                </tspan>
-                <!-- bottom line: date -->
-                <tspan
-                  x={lastX + 8}
-                  dy="1.2em"
-                  style="fill:#666; font-weight: 400;"
-                >
-                  {isMonthOrQuarterPeriod(indicator_period)
-                    ? formatLastDateMonthly(lastPoint[xKey])
-                    : lastDateStr}
-                </tspan>
-              </text>
             {/if}
           </g>
         </svg>
