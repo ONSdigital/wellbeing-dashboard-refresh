@@ -845,9 +845,7 @@
                     {#if secondarySeriesId}
                       <div class="compact-two-series">
                         <div class="compact-two-series-grid">
-                          <span class="compact-grid-empty" aria-hidden="true"
-                            ></span
-                          >
+                          <span class="compact-grid-empty" aria-hidden="true" />
                           <p class="compact-grid-header">Short term</p>
                           <p class="compact-grid-header">Long term</p>
 
@@ -1026,11 +1024,13 @@
                     class:indicators-container--two-series={secondarySeriesId}
                   >
                     <div class="indicators-header">
-                      <p
-                        class="latest-value-series-title latest-value-series-title-primary"
-                      >
-                        {metadataBySeries[seriesId]?.title ?? seriesId}
-                      </p>
+                      {#if secondarySeriesId}
+                        <p
+                          class="latest-value-series-title latest-value-series-title-primary"
+                        >
+                          {metadataBySeries[seriesId]?.title ?? seriesId}
+                        </p>
+                      {/if}
                       <p class="latest-value-number">
                         {formatLatestValue(seriesId, row)}
                         {#if secondarySeriesId}
@@ -1057,7 +1057,10 @@
                           />
                         </p>
                       {/if}
-                      <p class="latest-value-period">
+                      <p
+                        class="latest-value-period"
+                        class:latest-value-period--single={!secondarySeriesId}
+                      >
                         {formatLatestTimePeriod(seriesId, row)}
                       </p>
                     </div>
@@ -1671,6 +1674,10 @@
     margin: 10px 0 8px 0;
   }
 
+  .card .latest-value-period--single {
+    color: #206095;
+  }
+
   .card .latest-value-series-title {
     font-size: 0.95rem;
     line-height: 1.2;
@@ -2168,9 +2175,15 @@
     .card-header-right {
       margin-right: 0;
       flex-direction: row;
-      align-items: center;
+      align-items: flex-start;
       width: 100%;
       gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card.collapsed .card-header-right {
+      justify-content: flex-start;
+      margin-right: 0;
     }
 
     .card.expanded .card-header-right {
@@ -2187,8 +2200,7 @@
     }
 
     .compact-change {
-      flex-direction: row-reverse;
-      gap: 12px;
+      display: contents;
     }
 
     .compact-two-series {
@@ -2201,7 +2213,22 @@
     }
 
     .compact-change p {
+      order: 3;
+      flex-basis: 100%;
       text-align: left !important;
+      transform: none;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+
+    .compact-change p br {
+      display: none;
+    }
+
+    .compact-change :global(.indicator-area),
+    .updated-flag-container :global(.indicator-area) {
+      align-self: flex-start;
+      text-align: left;
     }
 
     .compact-change-date {
@@ -2210,15 +2237,23 @@
     }
 
     .compact-indicator--short {
-      align-items: flex-end;
+      order: 1;
+      align-items: flex-start;
     }
 
     .compact-indicator--long {
+      order: 2;
       align-items: flex-start;
     }
 
     .updated-flag-container {
-      display: none;
+      display: flex;
+      position: static;
+      top: auto;
+      right: auto;
+      transform: none;
+      justify-content: flex-start;
+      order: 2;
     }
 
     .subtitle {
@@ -2290,7 +2325,7 @@
     }
 
     .card-header-right {
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 8px;
     }
   }

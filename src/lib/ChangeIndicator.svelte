@@ -151,7 +151,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    border: 2px solid var(--not-assessed-border-color, #DADADA);
+    border: 2px solid var(--not-assessed-border-color, #dadada);
     pointer-events: none;
     box-sizing: border-box;
   }
