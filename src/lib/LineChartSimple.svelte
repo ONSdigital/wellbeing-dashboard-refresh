@@ -22,6 +22,7 @@
   export let series_id = null; // identifier for this series
   export let thinSeries = null; // which series_id should be thinner
   export let indicator_period = null; // frequency for date formatting (e.g., "monthly", "weekly")
+  export let overlaySeries = []; // optional additional series to draw on the same chart
 
   // Normalize `index` prop so strings like "false"/"0" don't evaluate truthy
   $: indexBoolean = toBoolean(index);
@@ -53,6 +54,29 @@
     thousandsBoolean,
     startDate,
   });
+
+  $: overlaySeriesResolved = (Array.isArray(overlaySeries) ? overlaySeries : [])
+    .map((series, idx) => {
+      const transformed = computeTransformedData(series?.data, {
+        xKey,
+        yKey,
+        thousandsBoolean,
+        startDate,
+      });
+
+      return {
+        series_id: series?.series_id ?? `overlay-${idx}`,
+        lineColor: series?.lineColor ?? "#27a0cc",
+        thin: !!series?.thin,
+        transformed,
+      };
+    })
+    .filter((series) => series.transformed.length > 0);
+
+  $: domainInputData = [
+    ...transformedData,
+    ...overlaySeriesResolved.flatMap((series) => series.transformed),
+  ];
 
   function toFiniteNumberOrNaN(value) {
     if (value === null || value === undefined) return NaN;
@@ -150,7 +174,7 @@
     niceMin,
     niceMax,
   } = computeYDomainFromTransformedData({
-    transformedData,
+    transformedData: domainInputData,
     yKey,
     yMax,
     indexBoolean,
@@ -285,6 +309,15 @@
     if (typeof val === "string") return val.trim() === "";
     if (typeof val === "number") return Number.isNaN(val);
     return false;
+  }
+
+  function getLastDefinedPoint(points, key) {
+    if (!Array.isArray(points)) return null;
+    for (let i = points.length - 1; i >= 0; i--) {
+      const point = points[i];
+      if (!isMissingValue(point?.[key])) return point;
+    }
+    return null;
   }
 
   // Grey bands:
@@ -533,6 +566,15 @@
               stroke-width="{strokeWidth}px"
             />
 
+            {#each overlaySeriesResolved as series (series.series_id)}
+              <path
+                class="line"
+                d={lineFn(series.transformed)}
+                stroke={series.lineColor}
+                stroke-width="{strokeWidth}px"
+              />
+            {/each}
+
             {#if transformedData.length}
               {@const lastPoint = transformedData[transformedData.length - 1]}
               <circle
@@ -542,6 +584,25 @@
                 r="4"
                 fill={lineColor}
               />
+
+              {@const secondarySeries = overlaySeriesResolved[0]}
+              {@const secondaryLastPoint = getLastDefinedPoint(
+                secondarySeries?.transformed,
+                yKey
+              )}
+              {#if secondaryLastPoint}
+                {@const secondaryLastX = x(secondaryLastPoint[xKey])}
+                {@const secondaryLastY = y(secondaryLastPoint[yKey])}
+                <rect
+                  class="line-point line-point-diamond"
+                  x={secondaryLastX - 4}
+                  y={secondaryLastY - 4}
+                  width="8"
+                  height="8"
+                  transform={`rotate(45 ${secondaryLastX} ${secondaryLastY})`}
+                  fill={secondarySeries.lineColor}
+                />
+              {/if}
             {/if}
           </g>
         </svg>

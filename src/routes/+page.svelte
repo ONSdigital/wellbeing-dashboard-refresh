@@ -34,7 +34,6 @@
   import {
     getSeriesEntriesByCategory,
     getSummaryTableEntries as getSummaryTableEntriesForCategories,
-    getVisibleSeriesIds,
   } from "$lib/seriesSelectors.js";
   import { getLinkDomainFromUrl } from "$lib/url.js";
   import {
@@ -130,11 +129,34 @@
   const globalMaxDate = getGlobalMaxDate();
 
   function renderCards(category) {
-    return getSeriesEntriesByCategory(
+    const entries = getSeriesEntriesByCategory(
       latestBySeries,
       metadataBySeries,
       category
     );
+
+    const grouped = new Map();
+
+    for (const [seriesId, row] of entries) {
+      const meta = metadataBySeries?.[seriesId] ?? {};
+      const rawGroup = String(meta?.card_group ?? "").trim();
+      const cardId = rawGroup || seriesId;
+
+      if (!grouped.has(cardId)) {
+        grouped.set(cardId, {
+          cardId,
+          primarySeriesId: seriesId,
+          primaryRow: row,
+          cardTitle: meta?.card_title || meta?.title || seriesId,
+          cardDescription: meta?.card_description || meta?.description || "",
+          seriesEntries: [],
+        });
+      }
+
+      grouped.get(cardId).seriesEntries.push({ seriesId, row });
+    }
+
+    return Array.from(grouped.values());
   }
 
   function formatLatestValue(seriesId, row) {
@@ -315,17 +337,19 @@
   // Track expanded state for each card
   let expandedCards = {};
 
-  $: visibleSeriesIds = getVisibleSeriesIds(latestBySeries, metadataBySeries);
+  const sectionCategories = ["consumer", "business", "energy", "transport"];
 
-  $: anyCardsExpanded = visibleSeriesIds.some(
-    (seriesId) => expandedCards[seriesId]
+  $: visibleCardIds = sectionCategories.flatMap((category) =>
+    renderCards(category).map((card) => card.primarySeriesId)
   );
+
+  $: anyCardsExpanded = visibleCardIds.some((seriesId) => expandedCards[seriesId]);
 
   function toggleAllCards() {
     const nextState = !anyCardsExpanded;
     const nextExpanded = {};
 
-    visibleSeriesIds.forEach((seriesId) => {
+    visibleCardIds.forEach((seriesId) => {
       nextExpanded[seriesId] = nextState;
     });
 
@@ -764,7 +788,9 @@
       <section aria-label="{section.title} section">
         <h2>{section.title}</h2>
         <div class="cards">
-          {#each renderCards(section.category) as [seriesId, row]}
+          {#each renderCards(section.category) as card}
+            {@const seriesId = card.primarySeriesId}
+            {@const row = card.primaryRow}
             <button
               class="card {expandedCards[seriesId] ? 'expanded' : 'collapsed'}"
               on:click={() =>
@@ -772,7 +798,7 @@
               aria-expanded={expandedCards[seriesId] ? "true" : "false"}
               aria-label="{expandedCards[seriesId]
                 ? 'Collapse'
-                : 'Expand'} {metadataBySeries[seriesId]?.title ??
+                : 'Expand'} {card.cardTitle ??
                 seriesId} details"
             >
               <div class="card-header">
@@ -801,7 +827,8 @@
                   </svg>
                   <h3 class="card-title">
                     <span class="card-title-text"
-                      >{metadataBySeries[seriesId]?.title ?? seriesId}</span
+                      >{card.cardTitle ?? metadataBySeries[seriesId]?.title ??
+                        seriesId}</span
                     >
                   </h3>
                 </div>
@@ -858,7 +885,7 @@
                 class:hidden={!expandedCards[seriesId]}
               >
                 <p class="subtitle">
-                  {metadataBySeries[seriesId]?.description}
+                  {card.cardDescription || metadataBySeries[seriesId]?.description}
                 </p>
                 <div class="layout-container">
                   <div class="chart">
@@ -890,17 +917,50 @@
                           metadataBySeries[seriesId]?.dp_chart ??
                           metadataBySeries[seriesId]?.dp,
                       }}
+                      overlaySeries={card.seriesEntries
+                        .slice(1)
+                        .map(({ seriesId: overlaySeriesId, row: overlayRow }, idx) => ({
+                          series_id: overlaySeriesId,
+                          data: overlayRow.full_series,
+                          lineColor: idx % 2 === 0 ? "#27a0cc" : "#118C7B",
+                          thin:
+                            metadataBySeries[overlaySeriesId]?.thin_line ===
+                            "TRUE",
+                        }))}
                       showYearDividersAtDomainEdges={false}
                     />
                   </div>
                   <div class="indicators-container">
                     <div class="indicators-header">
-                      <p class="latest-value-number">
-                        {formatLatestValue(seriesId, row)}
-                      </p>
                       <p class="latest-value-period">
                         {formatLatestTimePeriod(seriesId, row)}
                       </p>
+                      <p class="latest-value-series-title latest-value-series-title-primary">
+                        {metadataBySeries[seriesId]?.title ?? seriesId}
+                      </p>
+                      <p class="latest-value-number">
+                        {formatLatestValue(seriesId, row)}
+                        <span
+                          class="latest-value-marker latest-value-marker-circle"
+                          aria-hidden="true"
+                        />
+                      </p>
+                      {#if card.seriesEntries[1]}
+                        <p class="latest-value-series-title latest-value-series-title-secondary">
+                          {metadataBySeries[card.seriesEntries[1].seriesId]
+                            ?.title ?? card.seriesEntries[1].seriesId}
+                        </p>
+                        <p class="latest-value-number latest-value-number-secondary">
+                          {formatLatestValue(
+                            card.seriesEntries[1].seriesId,
+                            card.seriesEntries[1].row
+                          )}
+                          <span
+                            class="latest-value-marker latest-value-marker-diamond"
+                            aria-hidden="true"
+                          />
+                        </p>
+                      {/if}
                     </div>
                     <div class="indicators-row">
                       {#each [{ label: undefined }, { label: "year" }] as indicator}
@@ -1415,14 +1475,56 @@
     color: #206095;
     font-weight: 700;
     margin: 0 0 4px 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+  }
+
+  .card .latest-value-number-secondary {
+    font-size: 32pt;
+    line-height: 1.1;
+    color: #27a0cc;
+    margin: 0 0 4px 0;
+  }
+
+  .card .latest-value-marker {
+    width: 12.8px;
+    height: 12.8px;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  .card .latest-value-marker-circle {
+    border-radius: 50%;
+  }
+
+  .card .latest-value-marker-diamond {
+    border-radius: 0;
+    transform: rotate(45deg);
   }
 
   .card .latest-value-period {
     font-size: 0.95rem;
     line-height: 1.2;
-    color: #206095;
+    color: #666;
     font-weight: 400;
     margin: 0 0 8px 0;
+  }
+
+  .card .latest-value-series-title {
+    font-size: 0.95rem;
+    line-height: 1.2;
+    font-weight: 600;
+    margin: 4px 0 2px 0;
+  }
+
+  .card .latest-value-series-title-primary {
+    color: #206095;
+  }
+
+  .card .latest-value-series-title-secondary {
+    color: #27a0cc;
   }
 
   .indicators-header p {
