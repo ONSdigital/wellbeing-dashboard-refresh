@@ -22,7 +22,9 @@
   export let increaseArrowColor = "#195000";
   export let decreaseArrowColor = "#AD001F";
   function normalizeAssessment(value) {
-    const v = String(value ?? "").trim().toLowerCase();
+    const v = String(value ?? "")
+      .trim()
+      .toLowerCase();
     if (!v) return null;
     if (v === "improved") return "improved";
     if (v === "worsened") return "worsened";
@@ -127,5 +129,4 @@
   .text-indicator-period span {
     display: block;
   }
-
 </style>

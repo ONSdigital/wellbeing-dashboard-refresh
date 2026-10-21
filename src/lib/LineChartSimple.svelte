@@ -1,6 +1,6 @@
 <script>
   import { scaleLinear, scaleTime } from "d3-scale";
-  import { line, curveLinear } from "d3-shape";
+  import { area, line, curveLinear } from "d3-shape";
   import { format } from "d3-format";
   import { timeYear } from "d3-time";
   import { timeFormat } from "d3-time-format";
@@ -54,6 +54,46 @@
     thousandsBoolean,
     startDate,
   });
+
+  function toFiniteNumberOrNaN(value) {
+    if (value === null || value === undefined) return NaN;
+    if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+    if (typeof value === "string") {
+      const cleaned = value.replace(/,/g, "").trim();
+      if (!cleaned) return NaN;
+      const parsed = Number(cleaned);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
+  // Optional confidence interval support (ci_lower/ci_upper).
+  // Blank or invalid CI values are ignored per row.
+  $: ciData = transformedData.map((d) => {
+    const rawLower = toFiniteNumberOrNaN(d?.ci_lower);
+    const rawUpper = toFiniteNumberOrNaN(d?.ci_upper);
+    const lower =
+      thousandsBoolean && Number.isFinite(rawLower)
+        ? rawLower / 1000
+        : rawLower;
+    const upper =
+      thousandsBoolean && Number.isFinite(rawUpper)
+        ? rawUpper / 1000
+        : rawUpper;
+
+    return {
+      ...d,
+      ciLower: Math.min(lower, upper),
+      ciUpper: Math.max(lower, upper),
+      hasCi: Number.isFinite(lower) && Number.isFinite(upper),
+    };
+  });
+
+  $: ciValues = ciData.flatMap((d) => (d.hasCi ? [d.ciLower, d.ciUpper] : []));
+  $: hasAnyCi = ciValues.length > 0;
+  $: ciMin = hasAnyCi ? Math.min(...ciValues) : NaN;
+  $: ciMax = hasAnyCi ? Math.max(...ciValues) : NaN;
 
   // Fallback to data extent if no start/end provided
   $: dataMinDate = transformedData.length
@@ -120,8 +160,19 @@
     niceCount: yTickCount,
   }));
 
-  $: yDomainMin = paddedMin;
-  $: yDomainMax = niceMax;
+  $: [yDomainMin, yDomainMax] = (() => {
+    let min = paddedMin;
+    let max = niceMax;
+
+    if (hasAnyCi) {
+      min = Math.min(min, ciMin);
+      max = Math.max(max, ciMax);
+    }
+
+    if (!(min < max)) max = min + Number.EPSILON;
+
+    return scaleLinear().domain([min, max]).nice(yTickCount).domain();
+  })();
 
   $: y = scaleLinear()
     .domain([yDomainMin, yDomainMax])
@@ -229,6 +280,13 @@
     .defined((d) => !isMissingValue(d[yKey]))
     .x((d) => x(d[xKey]))
     .y((d) => y(d[yKey]));
+
+  $: ciAreaFn = area()
+    .curve(curveLinear)
+    .defined((d) => d.hasCi)
+    .x((d) => x(d[xKey]))
+    .y0((d) => y(d.ciLower))
+    .y1((d) => y(d.ciUpper));
 
   function isTooCloseToEdge(xPos, w) {
     return xPos < 20 || w - xPos < 20;
@@ -478,6 +536,10 @@
 
           <!-- Line series -->
           <g class="plot">
+            {#if hasAnyCi}
+              <path class="ci-band" d={ciAreaFn(ciData)} />
+            {/if}
+
             <path
               class="line"
               d={lineFn(transformedData)}
@@ -574,6 +636,11 @@
     fill: none;
     stroke-linejoin: round;
     stroke-linecap: round;
+  }
+
+  .ci-band {
+    fill: rgba(32, 96, 149, 0.45);
+    stroke: none;
   }
 
   .tick-line {

@@ -181,9 +181,13 @@
 
   function formatComparisonValueText(seriesId, row, label) {
     const comparisonDate =
-      label === "year" ? row?.year_over_year_date : row?.period_over_period_date;
+      label === "year"
+        ? row?.year_over_year_date
+        : row?.period_over_period_date;
     const targetDate =
-      comparisonDate instanceof Date ? comparisonDate : new Date(comparisonDate);
+      comparisonDate instanceof Date
+        ? comparisonDate
+        : new Date(comparisonDate);
     if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) {
       return "";
     }
@@ -215,7 +219,9 @@
         label === "year"
           ? toNumberOrNaN(row?.year_over_year_change)
           : toNumberOrNaN(row?.period_over_period_change);
-      const scaledChange = toBoolean(meta.thousands) ? rawChange / 1000 : rawChange;
+      const scaledChange = toBoolean(meta.thousands)
+        ? rawChange / 1000
+        : rawChange;
 
       if (!Number.isNaN(lastValue) && !Number.isNaN(scaledChange)) {
         comparisonValue = lastValue - scaledChange;
