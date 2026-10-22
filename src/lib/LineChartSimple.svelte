@@ -340,6 +340,8 @@
     };
     if (!domainStart || !domainEnd) return changes;
 
+    const YEAR_LABEL_MIN_VISIBLE_FRACTION = 0.7;
+
     // Year starts (Jan 1)
     // Add 1 day to domainEnd to ensure the final year boundary is included
     const yearStarts = timeYear.range(
@@ -360,10 +362,33 @@
 
     for (const ys of filteredYearStarts) {
       changes.years.push(ys);
-      // Mid-year label (Jul 1) to replicate Q3 labeling
-      const mid = new Date(ys.getFullYear(), 5, 1);
-      if (mid >= domainStart && mid <= domainEnd) {
-        changes.yearLabels.push({ date: mid, year: mid.getFullYear() });
+    }
+
+    // Add year labels when enough of that calendar year is visible,
+    // even if no full year boundary divider is present in-domain.
+    const startYear = domainStart.getFullYear();
+    const endYear = domainEnd.getFullYear();
+    for (let year = startYear; year <= endYear; year++) {
+      const yearStart = new Date(year, 0, 1);
+      const yearEndExclusive = new Date(year + 1, 0, 1);
+
+      const overlapStartMs = Math.max(+domainStart, +yearStart);
+      const overlapEndMs = Math.min(+domainEnd, +yearEndExclusive);
+      const overlapMs = overlapEndMs - overlapStartMs;
+      const yearMs = +yearEndExclusive - +yearStart;
+
+      if (overlapMs <= 0 || yearMs <= 0) continue;
+
+      const visibleFraction = overlapMs / yearMs;
+      if (visibleFraction < YEAR_LABEL_MIN_VISIBLE_FRACTION) continue;
+
+      const midYearDate = new Date(year, 5, 1);
+      const labelDate =
+        midYearDate >= domainStart && midYearDate <= domainEnd
+          ? midYearDate
+          : new Date(overlapStartMs + overlapMs / 2);
+      if (labelDate >= domainStart && labelDate <= domainEnd) {
+        changes.yearLabels.push({ date: labelDate, year });
       }
     }
 
@@ -390,7 +415,8 @@
     return xPos < 20 || w - xPos < 20;
   }
 
-  const NO_DATA_GAP_THRESHOLD_DAYS = 30;
+  const START_GAP_FACTOR = 1.2;
+  const INTERNAL_INTERVAL_GAP_FACTOR = 1.5;
 
   function isMissingValue(val) {
     if (val === null || val === undefined) return true;
@@ -408,6 +434,68 @@
     return null;
   }
 
+  function getCadenceApproxDays(cadence) {
+    const c = cadence?.toLowerCase?.();
+    if (c === "daily" || c === "day") return 1;
+    if (c === "weekly" || c === "week") return 7;
+    if (c === "monthly" || c === "month") return 31;
+    if (c === "quarterly" || c === "quarter") return 92;
+    if (
+      c === "annual" ||
+      c === "annually" ||
+      c === "yearly" ||
+      c === "year"
+    ) {
+      return 366;
+    }
+    return null;
+  }
+
+  function inferCadenceFromMedianDays(medianDays) {
+    if (!Number.isFinite(medianDays) || medianDays <= 0) return null;
+    if (medianDays <= 2) return 1;
+    if (medianDays <= 10) return 7;
+    if (medianDays <= 45) return 31;
+    if (medianDays <= 120) return 92;
+    if (medianDays <= 420) return 366;
+    return null;
+  }
+
+  function getObservedMedianGapDays(points, xAccessor) {
+    const sorted = (Array.isArray(points) ? points : [])
+      .map((d) => d?.[xAccessor])
+      .filter((d) => d instanceof Date && !Number.isNaN(d.getTime()))
+      .sort((a, b) => a - b);
+
+    if (sorted.length < 4) return null;
+
+    const gaps = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const diffDays = (sorted[i] - sorted[i - 1]) / (1000 * 60 * 60 * 24);
+      if (Number.isFinite(diffDays) && diffDays > 0) gaps.push(diffDays);
+    }
+
+    if (gaps.length < 3) return null;
+
+    gaps.sort((a, b) => a - b);
+    const mid = Math.floor(gaps.length / 2);
+    return gaps.length % 2 === 0
+      ? (gaps[mid - 1] + gaps[mid]) / 2
+      : gaps[mid];
+  }
+
+  function hasCustomTextualDateRanges(points) {
+    const rows = Array.isArray(points) ? points : [];
+    return rows.some((row) => {
+      const raw = String(row?.raw_date_label ?? "").trim();
+      if (!raw) return false;
+
+      // Custom period labels like "11 to 22 January 2023" are irregular by design.
+      // Do not apply cadence heuristics to these series.
+      return /\d\s*(?:to|-|–|—)\s*\d/i.test(raw) && /[A-Za-z]/.test(raw);
+    });
+  }
+
   // Grey bands:
   // 1) Start-of-series band when the series begins well after the axis start
   // 2) Internal bands for contiguous rows where the value is missing
@@ -417,19 +505,42 @@
     const sorted = [...transformedData].sort((a, b) => a[xKey] - b[xKey]);
     const gaps = [];
 
-    const firstRowDate = sorted[0]?.[xKey];
-    if (effectiveStart && firstRowDate) {
-      const daysDiff = (firstRowDate - effectiveStart) / (1000 * 60 * 60 * 24);
-      if (daysDiff > NO_DATA_GAP_THRESHOLD_DAYS) {
-        gaps.push({ start: effectiveStart, end: firstRowDate });
-      }
-    }
+    const periodCadenceDays = getCadenceApproxDays(indicator_period);
+    const observedMedianDays = getObservedMedianGapDays(sorted, xKey);
+    const observedCadenceDays = inferCadenceFromMedianDays(observedMedianDays);
+    const hasStandardCadence = Number.isFinite(periodCadenceDays);
+    const hasCustomRanges = hasCustomTextualDateRanges(sorted);
+
+    // Custom textual ranges are irregular by design. Keep only the
+    // initial start-gap behavior and treat cadence as quarterly.
+    const cadenceForStartGapDays = hasCustomRanges
+      ? 92
+      : hasStandardCadence
+      ? observedCadenceDays ?? periodCadenceDays
+      : null;
+
+    const useInternalCadenceGaps = hasStandardCadence && !hasCustomRanges;
+
+    const startGapThresholdDays = Number.isFinite(cadenceForStartGapDays)
+      ? cadenceForStartGapDays * START_GAP_FACTOR
+      : null;
+    const internalGapThresholdDays = useInternalCadenceGaps
+      ? (observedCadenceDays ?? periodCadenceDays) * INTERNAL_INTERVAL_GAP_FACTOR
+      : null;
 
     const getGapDate = (row) => {
       const gd = row?.gapDate;
       if (gd instanceof Date && !Number.isNaN(gd.getTime())) return gd;
       return row?.[xKey];
     };
+
+    const firstRowDate = getGapDate(sorted[0]);
+    if (effectiveStart && firstRowDate && Number.isFinite(startGapThresholdDays)) {
+      const daysDiff = (firstRowDate - effectiveStart) / (1000 * 60 * 60 * 24);
+      if (daysDiff > startGapThresholdDays) {
+        gaps.push({ start: effectiveStart, end: firstRowDate });
+      }
+    }
 
     let gapStart = null;
     for (let i = 0; i < sorted.length; i++) {
@@ -442,6 +553,22 @@
         if (gapStart) {
           gaps.push({ start: gapStart, end: gapDate });
           gapStart = null;
+        }
+      }
+    }
+
+    // Detect true internal gaps even when there are no explicit missing rows.
+    if (Number.isFinite(internalGapThresholdDays)) {
+      const definedPoints = sorted.filter((d) => !isMissingValue(d[yKey]));
+      for (let i = 1; i < definedPoints.length; i++) {
+        const prev = getGapDate(definedPoints[i - 1]);
+        const curr = getGapDate(definedPoints[i]);
+        if (!(prev instanceof Date) || Number.isNaN(prev.getTime())) continue;
+        if (!(curr instanceof Date) || Number.isNaN(curr.getTime())) continue;
+
+        const daysDiff = (curr - prev) / (1000 * 60 * 60 * 24);
+        if (daysDiff > internalGapThresholdDays) {
+          gaps.push({ start: prev, end: curr });
         }
       }
     }
@@ -618,7 +745,7 @@
                 x1={x(date)}
                 y1={height - margin.bottom}
                 x2={x(date)}
-                y2={height - margin.bottom + 18}
+                y2={height - margin.bottom + 11}
               />
             {/each}
 

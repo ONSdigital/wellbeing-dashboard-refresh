@@ -77,9 +77,18 @@
     );
   }
 
+  function isCustomDateRange(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return false;
+
+    // Treat textual or numeric ranges as custom labels and avoid forced split.
+    return /\bto\b|[-–—]/i.test(text);
+  }
+
   const sinceDateText =
     comparisonDateText || formatComparisonDate(comparisonDate);
-  const shouldBreakSinceDateLine = includesMonthOrQuarter(sinceDateText);
+  const shouldBreakSinceDateLine =
+    includesMonthOrQuarter(sinceDateText) && !isCustomDateRange(sinceDateText);
 </script>
 
 {#if showLabel}
