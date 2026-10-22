@@ -440,12 +440,7 @@
     if (c === "weekly" || c === "week") return 7;
     if (c === "monthly" || c === "month") return 31;
     if (c === "quarterly" || c === "quarter") return 92;
-    if (
-      c === "annual" ||
-      c === "annually" ||
-      c === "yearly" ||
-      c === "year"
-    ) {
+    if (c === "annual" || c === "annually" || c === "yearly" || c === "year") {
       return 366;
     }
     return null;
@@ -479,9 +474,7 @@
 
     gaps.sort((a, b) => a - b);
     const mid = Math.floor(gaps.length / 2);
-    return gaps.length % 2 === 0
-      ? (gaps[mid - 1] + gaps[mid]) / 2
-      : gaps[mid];
+    return gaps.length % 2 === 0 ? (gaps[mid - 1] + gaps[mid]) / 2 : gaps[mid];
   }
 
   function hasCustomTextualDateRanges(points) {
@@ -525,7 +518,8 @@
       ? cadenceForStartGapDays * START_GAP_FACTOR
       : null;
     const internalGapThresholdDays = useInternalCadenceGaps
-      ? (observedCadenceDays ?? periodCadenceDays) * INTERNAL_INTERVAL_GAP_FACTOR
+      ? (observedCadenceDays ?? periodCadenceDays) *
+        INTERNAL_INTERVAL_GAP_FACTOR
       : null;
 
     const getGapDate = (row) => {
@@ -535,7 +529,11 @@
     };
 
     const firstRowDate = getGapDate(sorted[0]);
-    if (effectiveStart && firstRowDate && Number.isFinite(startGapThresholdDays)) {
+    if (
+      effectiveStart &&
+      firstRowDate &&
+      Number.isFinite(startGapThresholdDays)
+    ) {
       const daysDiff = (firstRowDate - effectiveStart) / (1000 * 60 * 60 * 24);
       if (daysDiff > startGapThresholdDays) {
         gaps.push({ start: effectiveStart, end: firstRowDate });

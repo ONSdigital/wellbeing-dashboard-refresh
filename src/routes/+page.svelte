@@ -53,7 +53,7 @@
 
   const analyticsProps = {
     product: "advanced-content",
-    pageTitle: "Real-time indicators dashboard",
+    pageTitle: "Wellbeing dashboard prototype",
     contentType: "visualisations",
     contentSubType: "dashboard",
     outputSeries:
@@ -900,7 +900,7 @@
 </script>
 
 <svelte:head>
-  <title>Real-time Indicators Dashboard</title>
+  <title>Wellbeing dashboard prototype</title>
 </svelte:head>
 
 <Embed>
