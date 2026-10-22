@@ -1947,6 +1947,7 @@
 
   .card .latest-value-period--single {
     color: #206095;
+    margin-top: 1px;
   }
 
   .card .latest-value-series-title {
@@ -2205,6 +2206,12 @@
   .indicators-row {
     display: flex;
     gap: 16px;
+  }
+
+  .card.expanded
+    .indicators-container:not(.indicators-container--two-series)
+    .indicators-row {
+    margin-top: 6px;
   }
 
   .indicators-child {
