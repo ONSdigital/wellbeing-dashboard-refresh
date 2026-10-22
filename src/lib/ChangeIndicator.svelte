@@ -62,8 +62,24 @@
     });
   }
 
+  function includesMonthOrQuarter(value) {
+    const text = String(value ?? "")
+      .trim()
+      .toLowerCase();
+    if (!text) return false;
+
+    if (/\bquarter\b|\bq[1-4]\b/.test(text)) {
+      return true;
+    }
+
+    return /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/.test(
+      text
+    );
+  }
+
   const sinceDateText =
     comparisonDateText || formatComparisonDate(comparisonDate);
+  const shouldBreakSinceDateLine = includesMonthOrQuarter(sinceDateText);
 </script>
 
 {#if showLabel}
@@ -108,8 +124,12 @@
 
 {#if showSinceDate && comparisonValueText && sinceDateText}
   <p class="text-indicator-period">
-    <span>{comparisonValueText} in</span>
-    <span class="text-indicator-period-date">{sinceDateText}</span>
+    {#if shouldBreakSinceDateLine}
+      <span>{comparisonValueText} in</span>
+      <span class="text-indicator-period-date">{sinceDateText}</span>
+    {:else}
+      <span>{comparisonValueText} in {sinceDateText}</span>
+    {/if}
   </p>
 {/if}
 

@@ -183,6 +183,22 @@
     return Array.from(grouped.values());
   }
 
+  function getUnitSuffix(seriesId) {
+    const suffixRaw =
+      metadataBySeries?.[seriesId]?.unit_suffix ??
+      metadataBySeries?.[seriesId]?.value_suffix;
+
+    if (suffixRaw === null || suffixRaw === undefined) return "";
+    return String(suffixRaw);
+  }
+
+  function appendUnitSuffix(valueText, seriesId) {
+    if (!valueText || valueText === "N/A") return valueText;
+    const suffix = getUnitSuffix(seriesId);
+    if (!suffix) return valueText;
+    return `${valueText}${suffix}`;
+  }
+
   function formatLatestValue(seriesId, row) {
     const meta = metadataBySeries?.[seriesId] ?? {};
     const transformedData = computeTransformedData(row?.full_series, {
@@ -222,7 +238,25 @@
       hasDecimalTicks,
     });
 
-    return formatted || "N/A";
+    return appendUnitSuffix(formatted || "N/A", seriesId);
+  }
+
+  function formatLatestValueParts(seriesId, row) {
+    const valueWithSuffix = formatLatestValue(seriesId, row);
+    const suffix = getUnitSuffix(seriesId);
+
+    if (!valueWithSuffix || valueWithSuffix === "N/A" || !suffix) {
+      return { value: valueWithSuffix, suffix: "" };
+    }
+
+    if (!valueWithSuffix.endsWith(suffix)) {
+      return { value: valueWithSuffix, suffix: "" };
+    }
+
+    return {
+      value: valueWithSuffix.slice(0, -suffix.length),
+      suffix,
+    };
   }
 
   function formatComparisonValueText(seriesId, row, label) {
@@ -298,7 +332,7 @@
       hasDecimalTicks,
     });
 
-    return formatted || "";
+    return appendUnitSuffix(formatted || "", seriesId);
   }
 
   function isMonthOrQuarterPeriod(period) {
@@ -622,6 +656,14 @@
       sectionCategories
     );
   }
+
+  $: latestValuePartsBySeries = (() => {
+    const out = {};
+    for (const [seriesId, row] of getSummaryTableEntries()) {
+      out[seriesId] = formatLatestValueParts(seriesId, row);
+    }
+    return out;
+  })();
 
   function downloadSummaryTableCsv() {
     const headers = [
@@ -983,10 +1025,7 @@
                           <p class="compact-grid-header">Short term</p>
                           <p class="compact-grid-header">Long term</p>
 
-                          <p
-                            class="compact-series-name"
-                            style={`color: ${primarySeriesColor};`}
-                          >
+                          <p class="compact-series-name">
                             {metadataBySeries[seriesId]?.title ?? seriesId}
                           </p>
                           <div class="compact-two-series-cell">
@@ -1004,10 +1043,7 @@
                               showLabel={false}
                             />
                           </div>
-                          <p
-                            class="compact-series-name"
-                            style={`color: ${secondarySeriesColor};`}
-                          >
+                          <p class="compact-series-name">
                             {metadataBySeries[secondarySeriesId]?.title ??
                               secondarySeriesId}
                           </p>
@@ -1144,9 +1180,20 @@
                         </p>
                       {/if}
                       <p class="latest-value-number">
-                        <span style={`color: ${primarySeriesColor};`}
-                          >{formatLatestValue(seriesId, row)}</span
+                        <span
+                          class="latest-value-text"
+                          style={`color: ${primarySeriesColor};`}
                         >
+                          <span
+                            >{latestValuePartsBySeries?.[seriesId]?.value ??
+                              formatLatestValue(seriesId, row)}</span
+                          >
+                          {#if latestValuePartsBySeries?.[seriesId]?.suffix}
+                            <span class="latest-value-suffix"
+                              >{latestValuePartsBySeries[seriesId].suffix}</span
+                            >
+                          {/if}
+                        </span>
                         {#if secondarySeriesId}
                           <span
                             class="latest-value-marker latest-value-marker-circle"
@@ -1166,12 +1213,25 @@
                         <p
                           class="latest-value-number latest-value-number-secondary"
                         >
-                          <span style={`color: ${secondarySeriesColor};`}
-                            >{formatLatestValue(
-                              secondarySeriesId,
-                              secondaryRow
-                            )}</span
+                          <span
+                            class="latest-value-text"
+                            style={`color: ${secondarySeriesColor};`}
                           >
+                            <span
+                              >{latestValuePartsBySeries?.[secondarySeriesId]
+                                ?.value ??
+                                formatLatestValue(
+                                  secondarySeriesId,
+                                  secondaryRow
+                                )}</span
+                            >
+                            {#if latestValuePartsBySeries?.[secondarySeriesId]?.suffix}
+                              <span class="latest-value-suffix"
+                                >{latestValuePartsBySeries[secondarySeriesId]
+                                  .suffix}</span
+                              >
+                            {/if}
+                          </span>
                           <span
                             class="latest-value-marker latest-value-marker-diamond"
                             style={`color: ${secondarySeriesColor};`}
@@ -1193,7 +1253,6 @@
                         >
                           <p
                             class="two-series-indicators-group-title two-series-indicators-group-title-primary"
-                            style={`color: ${primarySeriesColor};`}
                           >
                             {metadataBySeries[seriesId]?.title ?? seriesId}
                           </p>
@@ -1226,7 +1285,6 @@
                         >
                           <p
                             class="two-series-indicators-group-title two-series-indicators-group-title-secondary"
-                            style={`color: ${secondarySeriesColor};`}
                           >
                             {metadataBySeries[secondarySeriesId]?.title ??
                               secondarySeriesId}
@@ -1851,6 +1909,18 @@
     margin: 0 0 4px 0;
   }
 
+  .card .latest-value-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+
+  .card .latest-value-suffix {
+    font-size: 0.55em;
+    font-weight: 600;
+    line-height: 1;
+  }
+
   .card .latest-value-marker {
     width: 12.8px;
     height: 12.8px;
@@ -2249,8 +2319,8 @@
     }
 
     .layout-container--two-series {
-      --two-series-row1-col-a: 1fr;
-      --two-series-row1-col-b: 1fr;
+      --two-series-row1-col-a: 0.8fr;
+      --two-series-row1-col-b: 1.2fr;
       --two-series-row2-col-a: 1fr;
       --two-series-row2-col-b: 1fr;
       display: grid;
