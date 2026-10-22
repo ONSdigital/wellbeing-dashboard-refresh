@@ -579,7 +579,7 @@
               {#if !isTooCloseToEdge(x(date), width)}
                 <text
                   class="year-label"
-                  x={x(date)}
+                  x={x(date) + 3}
                   y={height - margin.bottom + 20}
                   text-anchor="middle"
                 >
