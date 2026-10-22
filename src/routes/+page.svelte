@@ -891,7 +891,7 @@
                           class="compact-change-date"
                           style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3;"
                         >
-                          Change up to {metadataBySeries[
+                          Change up to{" "}{metadataBySeries[
                             seriesId
                           ]?.indicator_period?.toLowerCase() === "monthly" ||
                           metadataBySeries[
@@ -919,7 +919,7 @@
                         <p
                           style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3; text-align:right;"
                         >
-                          Change up to<br />{metadataBySeries[
+                          Change up to{" "}<br />{metadataBySeries[
                             seriesId
                           ]?.indicator_period?.toLowerCase() === "monthly" ||
                           metadataBySeries[
