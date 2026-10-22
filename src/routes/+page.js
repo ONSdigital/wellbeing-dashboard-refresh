@@ -184,6 +184,20 @@ function isMonthlyCadence(cadence) {
   return c === "monthly" || c === "month";
 }
 
+function getMidpointDate(startDate, endDate) {
+  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
+    return new Date(NaN);
+  }
+  if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+    return new Date(NaN);
+  }
+  if (endDate < startDate) return new Date(NaN);
+
+  const midpointMs =
+    startDate.getTime() + (endDate.getTime() - startDate.getTime()) / 2;
+  return new Date(midpointMs);
+}
+
 export async function load({ fetch }) {
   let dates = await (await fetch(datesUrl)).json();
 
@@ -283,13 +297,17 @@ export async function load({ fetch }) {
       const quarter = Number(quarterMatch[1]);
       const year = Number(quarterMatch[2]);
       const month = (quarter - 1) * 3;
-      return new Date(year, month, 1);
+      const start = new Date(year, month, 1);
+      const end = new Date(year, month + 3, 0);
+      return getMidpointDate(start, end);
     }
 
     // Annual format: 2016
     if (/^\d{4}$/.test(str)) {
       const year = Number(str);
-      return new Date(year, 0, 1);
+      const start = new Date(year, 0, 1);
+      const end = new Date(year, 11, 31);
+      return getMidpointDate(start, end);
     }
 
     // Year range format: 2011 to 2013, 2011-2013
@@ -298,8 +316,9 @@ export async function load({ fetch }) {
       const startYear = Number(yearRangeMatch[1]);
       const endYear = Number(yearRangeMatch[2]);
       if (endYear < startYear) return new Date(NaN);
-      // Anchor to the end of the range so "up to" labels reflect the final year.
-      return new Date(endYear, 11, 31);
+      const start = new Date(startYear, 0, 1);
+      const end = new Date(endYear, 11, 31);
+      return getMidpointDate(start, end);
     }
 
     const monthIndexByName = {
@@ -402,7 +421,7 @@ export async function load({ fetch }) {
             leftDmy.day
           );
           if (!leftDate || leftDate > rightDate) return new Date(NaN);
-          return rightDate;
+          return getMidpointDate(leftDate, rightDate);
         }
 
         const leftDm = parseDayMonth(leftRaw);
@@ -413,7 +432,7 @@ export async function load({ fetch }) {
             leftDm.day
           );
           if (!inferredLeftDate || inferredLeftDate > rightDate) return new Date(NaN);
-          return rightDate;
+          return getMidpointDate(inferredLeftDate, rightDate);
         }
 
         const leftD = parseDayOnly(leftRaw);
@@ -424,7 +443,7 @@ export async function load({ fetch }) {
             leftD.day
           );
           if (!inferredLeftDate || inferredLeftDate > rightDate) return new Date(NaN);
-          return rightDate;
+          return getMidpointDate(inferredLeftDate, rightDate);
         }
       }
     }
