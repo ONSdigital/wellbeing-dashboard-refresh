@@ -13,6 +13,7 @@
   export let showSinceDate = false;
   export let comparisonDate = null;
   export let comparisonValueText = "";
+  export let comparisonDateText = "";
 
   // Colours
   export let noChangeBackground = "#E2E6ED";
@@ -61,7 +62,8 @@
     });
   }
 
-  const sinceDateText = formatComparisonDate(comparisonDate);
+  const sinceDateText =
+    comparisonDateText || formatComparisonDate(comparisonDate);
 </script>
 
 {#if showLabel}

@@ -126,7 +126,19 @@
     });
     return maxDate;
   }
+  function getRollingWindowStartDate(endDate, years) {
+    if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+      return null;
+    }
+    return new Date(
+      endDate.getFullYear() - years,
+      endDate.getMonth(),
+      endDate.getDate()
+    );
+  }
+
   const globalMaxDate = getGlobalMaxDate();
+  const chartStartDate = getRollingWindowStartDate(globalMaxDate, 10);
 
   function renderCards(category) {
     const entries = getSeriesEntriesByCategory(
@@ -284,7 +296,52 @@
     );
   }
 
+  function formatExpandedDateLabel(rawLabel, fallbackDate, seriesId) {
+    const raw = String(rawLabel ?? "").trim();
+
+    if (/^\d{4}$/.test(raw)) {
+      return raw;
+    }
+
+    const quarterMatch = raw.match(/^q([1-4])\s+(\d{4})$/i);
+    if (quarterMatch) {
+      return `Q${quarterMatch[1]} ${quarterMatch[2]}`;
+    }
+
+    if (/^\d{4}\s*(?:to|-|–|—)\s*\d{4}$/i.test(raw)) {
+      return raw;
+    }
+
+    const d =
+      fallbackDate instanceof Date ? fallbackDate : new Date(fallbackDate);
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
+      return "";
+    }
+
+    if (
+      isMonthOrQuarterPeriod(metadataBySeries?.[seriesId]?.indicator_period)
+    ) {
+      return d.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+      });
+    }
+
+    return d.toLocaleDateString("en-GB", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
   function formatLatestTimePeriod(seriesId, row) {
+    const latestLabel = formatExpandedDateLabel(
+      row?.raw_date_label,
+      row?.date,
+      seriesId
+    );
+    if (latestLabel) return latestLabel;
+
     const meta = metadataBySeries?.[seriesId] ?? {};
     const transformedData = computeTransformedData(row?.full_series, {
       xKey: "date",
@@ -313,6 +370,19 @@
     });
   }
 
+  function formatComparisonDateLabel(seriesId, row, label) {
+    const rawLabel =
+      label === "year"
+        ? row?.year_over_year_label
+        : row?.period_over_period_label;
+    const fallbackDate =
+      label === "year"
+        ? row?.year_over_year_date
+        : row?.period_over_period_date;
+
+    return formatExpandedDateLabel(rawLabel, fallbackDate, seriesId);
+  }
+
   function getTimePeriod(metadata) {
     const indicator_period = metadata?.indicator_period?.toLowerCase?.();
     if (
@@ -337,7 +407,7 @@
   // Track expanded state for each card
   let expandedCards = {};
 
-  const sectionCategories = ["consumer", "business", "energy", "transport"];
+  const sectionCategories = ["headline", "health", "energy", "transport"];
 
   $: visibleCardIds = sectionCategories.flatMap((category) =>
     renderCards(category).map((card) => card.primarySeriesId)
@@ -557,8 +627,6 @@
     link.click();
     URL.revokeObjectURL(url);
   }
-
-  const chartStartDate = new Date(2023, 11, 31);
 
   const isPreviewEnv = env?.PUBLIC_APP_ENV === "preview";
 
@@ -785,7 +853,7 @@
     <Divider hr="full" />
   </div>
 
-  {#each [{ title: "Consumer behaviour", category: "consumer" }, { title: "Business and workforce", category: "business" }, { title: "Energy and housing", category: "energy" }, { title: "Transport", category: "transport" }] as section, sectionIndex}
+  {#each [{ title: "Headline indicators", category: "headline" }, { title: "Health", category: "health" }, { title: "Energy and housing", category: "energy" }, { title: "Transport", category: "transport" }] as section, sectionIndex}
     <Section width="wide">
       <section aria-label="{section.title} section">
         <h2>{section.title}</h2>
@@ -891,27 +959,11 @@
                           class="compact-change-date"
                           style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3;"
                         >
-                          Change up to{" "}{metadataBySeries[
+                          Change up to{" "}{formatExpandedDateLabel(
+                            row?.raw_date_label,
+                            row?.date,
                             seriesId
-                          ]?.indicator_period?.toLowerCase() === "monthly" ||
-                          metadataBySeries[
-                            seriesId
-                          ]?.indicator_period?.toLowerCase() === "month" ||
-                          metadataBySeries[
-                            seriesId
-                          ]?.indicator_period?.toLowerCase() === "quarterly" ||
-                          metadataBySeries[
-                            seriesId
-                          ]?.indicator_period?.toLowerCase() === "quarter"
-                            ? row.date.toLocaleDateString("en-GB", {
-                                year: "numeric",
-                                month: "long",
-                              })
-                            : row.date.toLocaleDateString("en-GB", {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                              })}
+                          )}
                         </p>
                       </div>
                     {:else}
@@ -919,27 +971,11 @@
                         <p
                           style="margin:0; font-weight:normal; font-size:14px; color:#666; line-height:1.3; text-align:right;"
                         >
-                          Change up to{" "}<br />{metadataBySeries[
+                          Change up to{" "}<br />{formatExpandedDateLabel(
+                            row?.raw_date_label,
+                            row?.date,
                             seriesId
-                          ]?.indicator_period?.toLowerCase() === "monthly" ||
-                          metadataBySeries[
-                            seriesId
-                          ]?.indicator_period?.toLowerCase() === "month" ||
-                          metadataBySeries[
-                            seriesId
-                          ]?.indicator_period?.toLowerCase() === "quarterly" ||
-                          metadataBySeries[
-                            seriesId
-                          ]?.indicator_period?.toLowerCase() === "quarter"
-                            ? row.date.toLocaleDateString("en-GB", {
-                                year: "numeric",
-                                month: "long",
-                              })
-                            : row.date.toLocaleDateString("en-GB", {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                              })}
+                          )}
                         </p>
                         <div class="compact-indicator compact-indicator--short">
                           <ChangeIndicator {seriesId} {metadataBySeries} />
@@ -977,7 +1013,7 @@
                       data={row.full_series}
                       yKey="num_uk"
                       lineColor="#206095"
-                      startDate={new Date(2023, 11, 31)}
+                      startDate={chartStartDate}
                       endDate={globalMaxDate}
                       title={metadataBySeries[seriesId]?.title}
                       units_chart={metadataBySeries[seriesId]?.units_chart}
@@ -1089,6 +1125,11 @@
                                   row,
                                   indicator.label
                                 )}
+                                comparisonDateText={formatComparisonDateLabel(
+                                  seriesId,
+                                  row,
+                                  indicator.label
+                                )}
                               />
                             </div>
                           {/each}
@@ -1117,6 +1158,11 @@
                                   secondaryRow,
                                   indicator.label
                                 )}
+                                comparisonDateText={formatComparisonDateLabel(
+                                  secondarySeriesId,
+                                  secondaryRow,
+                                  indicator.label
+                                )}
                               />
                             </div>
                           {/each}
@@ -1135,6 +1181,11 @@
                                 ? row.year_over_year_date
                                 : row.period_over_period_date}
                               comparisonValueText={formatComparisonValueText(
+                                seriesId,
+                                row,
+                                indicator.label
+                              )}
+                              comparisonDateText={formatComparisonDateLabel(
                                 seriesId,
                                 row,
                                 indicator.label

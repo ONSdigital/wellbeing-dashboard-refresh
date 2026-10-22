@@ -4,6 +4,6 @@
   "email": "realtime.indicators@ons.gov.uk",
   "emailText": "Real Time Indicators team",
   "_comment": "notice_text supports[text](url) links; only http/https/mailto are allowed. Use \n for paragraph breaks",
-  "notice_enabled": true,
+  "notice_enabled": false,
   "notice_text": "This week our Direct Debit data have been improved. This includes only using consumer Direct Debits in our estimates and new breakdowns of benefits and salary quintiles. Please see our full [statistical bulletin](https://www.ons.gov.uk/economy/economicoutputandproductivity/output/bulletins/economicactivityandsocialchangeintheukrealtimeindicators/latest) and [methodology](https://www.ons.gov.uk/economy/economicoutputandproductivity/output/methodologies/coronavirusandthelatestindicatorsfortheukeconomyandsocietymethodology) for further information on these changes."
 }

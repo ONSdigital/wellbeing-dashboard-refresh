@@ -6,31 +6,56 @@ const datesUrl = `${base}/data/header-details.json`;
 const metadataUrl = `${base}/data/metadata.csv`;
 const updatedUrl = `${base}/data/updated.csv`;
 
-// Helper function to determine lookback periods based on frequency
-function getLookbackPeriods(frequency) {
-  const freq = frequency?.toLowerCase();
-
-  switch (freq) {
-    case "daily":
-    case "day":
-      return { period: 7, year: 364 }; // 7 days back (weekly change), 364 days for year (to same day of the week last year)
-    case "weekly":
-    case "week":
-      return { period: 1, year: 52 }; // 1 week back, 52 weeks for year
-    case "monthly":
-    case "month":
-      return { period: 1, year: 12 }; // 1 month back, 12 months for year
-    case "quarterly":
-    case "quarter":
-      return { period: 1, year: 4 }; // 1 quarter back, 4 quarters for year
-    default:
-      return { period: 1, year: 12 }; // default to monthly
-  }
+function getDateYearsBack(date, yearsBack) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  return new Date(
+    date.getFullYear() - yearsBack,
+    date.getMonth(),
+    date.getDate()
+  );
 }
 
-function isQuarterlyIndicator(indicatorPeriod) {
-  const p = indicatorPeriod?.toLowerCase?.();
-  return p === "quarterly" || p === "quarter";
+function getCadenceApproxDays(cadence) {
+  const c = cadence?.toLowerCase?.();
+  if (c === "daily" || c === "day") return 1;
+  if (c === "weekly" || c === "week") return 7;
+  if (c === "monthly" || c === "month") return 31;
+  if (c === "quarterly" || c === "quarter") return 92;
+  if (
+    c === "annual" ||
+    c === "annually" ||
+    c === "yearly" ||
+    c === "year"
+  ) {
+    return 366;
+  }
+  return 31;
+}
+
+function getClosestEntryToDate(entries, targetDate, maxDiffDays = Infinity) {
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) {
+    return null;
+  }
+
+  let bestEntry = null;
+  let bestDiffDays = Infinity;
+
+  for (const entry of entries) {
+    const d = entry?.date;
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) continue;
+
+    const diffDays = Math.abs(d.getTime() - targetDate.getTime()) /
+      (24 * 60 * 60 * 1000);
+
+    if (diffDays < bestDiffDays) {
+      bestDiffDays = diffDays;
+      bestEntry = entry;
+    }
+  }
+
+  if (bestDiffDays <= maxDiffDays) return bestEntry;
+  return null;
 }
 
 // Infer underlying data cadence from the time series itself.
@@ -60,48 +85,13 @@ function inferCadenceFromEntries(entries) {
   if (median <= 10) return "weekly";
   if (median <= 45) return "monthly";
   if (median <= 120) return "quarterly";
+  if (median <= 420) return "annual";
   return "monthly";
-}
-
-function getQuarterlyPeriodLookbackPoints(cadence) {
-  const c = cadence?.toLowerCase?.();
-  switch (c) {
-    case "daily":
-    case "day":
-      return 91; // approx 13 weeks / 1 quarter
-    case "weekly":
-    case "week":
-      return 13;
-    case "monthly":
-    case "month":
-      return 3;
-    case "quarterly":
-    case "quarter":
-      return 1;
-    default:
-      return 3;
-  }
 }
 
 function isMonthlyCadence(cadence) {
   const c = cadence?.toLowerCase?.();
   return c === "monthly" || c === "month";
-}
-
-function isPreviousCalendarMonth(latestDate, prevDate) {
-  if (!(latestDate instanceof Date) || !(prevDate instanceof Date))
-    return false;
-  if (Number.isNaN(latestDate.getTime()) || Number.isNaN(prevDate.getTime()))
-    return false;
-
-  const latestYear = latestDate.getFullYear();
-  const latestMonth = latestDate.getMonth();
-
-  const expectedPrev = new Date(latestYear, latestMonth - 1, 1);
-  return (
-    prevDate.getFullYear() === expectedPrev.getFullYear() &&
-    prevDate.getMonth() === expectedPrev.getMonth()
-  );
 }
 
 export async function load({ fetch }) {
@@ -174,9 +164,182 @@ export async function load({ fetch }) {
   const str = await (await fetch(dataUrl)).text();
   const array = csvParse(str, autoType);
 
-  const parseDate = (str) => {
-    const [day, month, year] = str.split("/").map(Number);
-    return new Date(year, month - 1, day);
+  const parseDate = (value) => {
+    if (value === null || value === undefined) return new Date(NaN);
+
+    const str = String(value).trim();
+    if (!str) return new Date(NaN);
+
+    // Quarterly format: Q1 2016, q3 2020
+    const quarterMatch = str.match(/^q([1-4])\s+(\d{4})$/i);
+    if (quarterMatch) {
+      const quarter = Number(quarterMatch[1]);
+      const year = Number(quarterMatch[2]);
+      const month = (quarter - 1) * 3;
+      return new Date(year, month, 1);
+    }
+
+    // Annual format: 2016
+    if (/^\d{4}$/.test(str)) {
+      const year = Number(str);
+      return new Date(year, 0, 1);
+    }
+
+    // Year range format: 2011 to 2013, 2011-2013
+    const yearRangeMatch = str.match(/^(\d{4})\s*(?:to|-|–|—)\s*(\d{4})$/i);
+    if (yearRangeMatch) {
+      const startYear = Number(yearRangeMatch[1]);
+      const endYear = Number(yearRangeMatch[2]);
+      if (endYear < startYear) return new Date(NaN);
+      // Anchor to the end of the range so "up to" labels reflect the final year.
+      return new Date(endYear, 11, 31);
+    }
+
+    const monthIndexByName = {
+      jan: 0,
+      january: 0,
+      feb: 1,
+      february: 1,
+      mar: 2,
+      march: 2,
+      apr: 3,
+      april: 3,
+      may: 4,
+      jun: 5,
+      june: 5,
+      jul: 6,
+      july: 6,
+      aug: 7,
+      august: 7,
+      sep: 8,
+      sept: 8,
+      september: 8,
+      oct: 9,
+      october: 9,
+      nov: 10,
+      november: 10,
+      dec: 11,
+      december: 11,
+    };
+
+    const buildCheckedDate = (year, monthIndex, day) => {
+      if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || !Number.isInteger(day)) {
+        return null;
+      }
+      const d = new Date(year, monthIndex, day);
+      if (
+        d.getFullYear() !== year ||
+        d.getMonth() !== monthIndex ||
+        d.getDate() !== day
+      ) {
+        return null;
+      }
+      return d;
+    };
+
+    const parseDayMonthYear = (input) => {
+      const match = String(input)
+        .trim()
+        .match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+      if (!match) return null;
+      const day = Number(match[1]);
+      const monthIndex = monthIndexByName[match[2].toLowerCase()];
+      const year = Number(match[3]);
+      if (monthIndex === undefined) return null;
+      return { day, monthIndex, year };
+    };
+
+    const parseDayMonth = (input) => {
+      const match = String(input)
+        .trim()
+        .match(/^(\d{1,2})\s+([A-Za-z]+)$/);
+      if (!match) return null;
+      const day = Number(match[1]);
+      const monthIndex = monthIndexByName[match[2].toLowerCase()];
+      if (monthIndex === undefined) return null;
+      return { day, monthIndex };
+    };
+
+    const parseDayOnly = (input) => {
+      const match = String(input)
+        .trim()
+        .match(/^(\d{1,2})$/);
+      if (!match) return null;
+      return { day: Number(match[1]) };
+    };
+
+    // Text range formats:
+    // - D Month YYYY to D Month YYYY
+    // - D Month to D Month YYYY
+    // - D to D Month YYYY
+    const textRangeMatch = str.match(/^(.+?)\s*(?:to|-|–|—)\s*(.+)$/i);
+    if (textRangeMatch) {
+      const leftRaw = textRangeMatch[1].trim();
+      const rightRaw = textRangeMatch[2].trim();
+
+      const rightDmy = parseDayMonthYear(rightRaw);
+      if (rightDmy) {
+        const rightDate = buildCheckedDate(
+          rightDmy.year,
+          rightDmy.monthIndex,
+          rightDmy.day
+        );
+        if (!rightDate) return new Date(NaN);
+
+        // Validate the left side where possible while allowing omitted month/year.
+        const leftDmy = parseDayMonthYear(leftRaw);
+        if (leftDmy) {
+          const leftDate = buildCheckedDate(
+            leftDmy.year,
+            leftDmy.monthIndex,
+            leftDmy.day
+          );
+          if (!leftDate || leftDate > rightDate) return new Date(NaN);
+          return rightDate;
+        }
+
+        const leftDm = parseDayMonth(leftRaw);
+        if (leftDm) {
+          const inferredLeftDate = buildCheckedDate(
+            rightDmy.year,
+            leftDm.monthIndex,
+            leftDm.day
+          );
+          if (!inferredLeftDate || inferredLeftDate > rightDate) return new Date(NaN);
+          return rightDate;
+        }
+
+        const leftD = parseDayOnly(leftRaw);
+        if (leftD) {
+          const inferredLeftDate = buildCheckedDate(
+            rightDmy.year,
+            rightDmy.monthIndex,
+            leftD.day
+          );
+          if (!inferredLeftDate || inferredLeftDate > rightDate) return new Date(NaN);
+          return rightDate;
+        }
+      }
+    }
+
+    // Single text date format: D Month YYYY
+    const textDate = parseDayMonthYear(str);
+    if (textDate) {
+      const d = buildCheckedDate(textDate.year, textDate.monthIndex, textDate.day);
+      if (d) return d;
+      return new Date(NaN);
+    }
+
+    // Legacy format: dd/mm/yyyy
+    const slashDateMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashDateMatch) {
+      const day = Number(slashDateMatch[1]);
+      const month = Number(slashDateMatch[2]);
+      const year = Number(slashDateMatch[3]);
+      return new Date(year, month - 1, day);
+    }
+
+    return new Date(NaN);
   };
 
   const grouped = {};
@@ -184,9 +347,10 @@ export async function load({ fetch }) {
   for (const row of array) {
     const date = parseDate(row.date);
     const key = row.series_id;
+    const rawDateLabel = String(row?.date ?? "").trim();
 
     if (!grouped[key]) grouped[key] = [];
-    grouped[key].push({ ...row, date, gapDate: date });
+    grouped[key].push({ ...row, raw_date_label: rawDateLabel, date, gapDate: date });
   }
 
   const result = {};
@@ -198,8 +362,6 @@ export async function load({ fetch }) {
 
     const meta = metadataBySeries[series_id] ?? {};
     const dataFrequency = meta?.data_frequency;
-    const indicatorPeriod = meta?.indicator_period;
-
     // If the underlying data is monthly, shift points from the 1st to the 15th
     // so they plot mid-month on the chart.
     const inferredCadence = inferCadenceFromEntries(entries);
@@ -217,33 +379,21 @@ export async function load({ fetch }) {
       }
     }
 
-    // Default lookback is based on the underlying data cadence (if present),
-    // otherwise we fall back to the indicator_period.
-    const frequencyForLookback = dataFrequency ?? indicatorPeriod;
-    let { period: periodLookback, year: yearLookback } =
-      getLookbackPeriods(frequencyForLookback);
+    // Short term = 1 calendar year back; long term = 5 calendar years back.
+    // Only accept a comparator when there is a nearby point for that cadence.
+    const cadenceForLookback = dataFrequency ?? inferredCadence;
+    const maxDiffDays = getCadenceApproxDays(cadenceForLookback) * 2;
 
-    // If the indicator is defined as quarterly, ensure the period-over-period change
-    // compares to the prior quarter (e.g., 3 months back for monthly data).
-    if (isQuarterlyIndicator(indicatorPeriod)) {
-      const cadenceForQuarterly =
-        dataFrequency ?? inferredCadence ?? frequencyForLookback;
-      periodLookback = getQuarterlyPeriodLookbackPoints(cadenceForQuarterly);
-      yearLookback = getLookbackPeriods(cadenceForQuarterly).year;
-    }
-
-    // Calculate period-over-period (adaptive based on frequency)
-    let prevPeriod = entries[entries.length - 1 - periodLookback];
-    const prevYear = entries[entries.length - 1 - yearLookback];
-
-    // Monthly indicators should only compare to the actual prior calendar month.
-    // If that month is missing, mark the change as unavailable.
-    const isMonthlyIndicator = isMonthlyCadence(frequencyForLookback);
-    if (isMonthlyIndicator && periodLookback === 1 && prevPeriod) {
-      if (!isPreviousCalendarMonth(latest.date, prevPeriod.date)) {
-        prevPeriod = null;
-      }
-    }
+    const prevPeriod = getClosestEntryToDate(
+      entries,
+      getDateYearsBack(latest.date, 1),
+      maxDiffDays
+    );
+    const prevYear = getClosestEntryToDate(
+      entries,
+      getDateYearsBack(latest.date, 5),
+      maxDiffDays
+    );
 
     const pop = prevPeriod ? latest.num_uk - prevPeriod.num_uk : null;
     const yoy = prevYear ? latest.num_uk - prevYear.num_uk : null;
@@ -261,9 +411,11 @@ export async function load({ fetch }) {
       period_over_period_change: pop,
       period_over_period_percent: pop_percent,
       period_over_period_date: prevPeriod ? prevPeriod.date : null,
+      period_over_period_label: prevPeriod ? prevPeriod.raw_date_label : null,
       year_over_year_change: yoy,
       year_over_year_percent: yoy_percent,
       year_over_year_date: prevYear ? prevYear.date : null,
+      year_over_year_label: prevYear ? prevYear.raw_date_label : null,
       full_series: entries,
     };
   }
