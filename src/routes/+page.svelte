@@ -296,6 +296,16 @@
     );
   }
 
+  function getQuarterMonthRange(quarterNumber) {
+    const quarterRanges = {
+      1: "January-March",
+      2: "April-June",
+      3: "July-September",
+      4: "October-December",
+    };
+    return quarterRanges[quarterNumber] || "";
+  }
+
   function formatExpandedDateLabel(rawLabel, fallbackDate, seriesId) {
     const raw = String(rawLabel ?? "").trim();
 
@@ -305,10 +315,16 @@
 
     const quarterMatch = raw.match(/^q([1-4])\s+(\d{4})$/i);
     if (quarterMatch) {
-      return `Q${quarterMatch[1]} ${quarterMatch[2]}`;
+      return `Quarter ${quarterMatch[1]} ${quarterMatch[2]}`;
     }
 
     if (/^\d{4}\s*(?:to|-|–|—)\s*\d{4}$/i.test(raw)) {
+      return raw;
+    }
+
+    // Preserve source labels for textual ranges such as:
+    // "11 to 22 January 2023", "22 March to 2 April 2023"
+    if (/\d\s*(?:to|-|–|—)\s*\d/i.test(raw) && /[A-Za-z]/.test(raw)) {
       return raw;
     }
 
@@ -334,8 +350,38 @@
     });
   }
 
+  function formatExpandedValueDateLabel(rawLabel, fallbackDate, seriesId) {
+    const raw = String(rawLabel ?? "").trim();
+    const quarterMatch = raw.match(/^q([1-4])\s+(\d{4})$/i);
+    if (quarterMatch) {
+      const quarter = Number(quarterMatch[1]);
+      const quarterRange = getQuarterMonthRange(quarter);
+      return quarterRange
+        ? `Quarter ${quarter} ${quarterMatch[2]} (${quarterRange})`
+        : `Quarter ${quarter} ${quarterMatch[2]}`;
+    }
+
+    const indicatorPeriod = metadataBySeries?.[seriesId]?.indicator_period
+      ?.toLowerCase?.();
+    const d =
+      fallbackDate instanceof Date ? fallbackDate : new Date(fallbackDate);
+    if (
+      (indicatorPeriod === "quarterly" || indicatorPeriod === "quarter") &&
+      d instanceof Date &&
+      !Number.isNaN(d.getTime())
+    ) {
+      const quarter = Math.floor(d.getMonth() / 3) + 1;
+      const quarterRange = getQuarterMonthRange(quarter);
+      return quarterRange
+        ? `Quarter ${quarter} ${d.getFullYear()} (${quarterRange})`
+        : `Quarter ${quarter} ${d.getFullYear()}`;
+    }
+
+    return formatExpandedDateLabel(rawLabel, fallbackDate, seriesId);
+  }
+
   function formatLatestTimePeriod(seriesId, row) {
-    const latestLabel = formatExpandedDateLabel(
+    const latestLabel = formatExpandedValueDateLabel(
       row?.raw_date_label,
       row?.date,
       seriesId

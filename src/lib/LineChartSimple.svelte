@@ -11,7 +11,9 @@
   import { toBoolean, toNonNegativeIntOrNull } from "$lib/coerce.js";
 
   function normalizeUnitsChart(unitsChart) {
-    return String(unitsChart ?? "").trim().toLowerCase();
+    return String(unitsChart ?? "")
+      .trim()
+      .toLowerCase();
   }
 
   function isPercentageUnits(unitsChart) {
@@ -554,8 +556,8 @@
                   {isPercentageChart
                     ? formatPercent(tick / 100)
                     : isCurrencyChart
-                      ? formatCurrency(tick)
-                      : formatValue(tick)}
+                    ? formatCurrency(tick)
+                    : formatValue(tick)}
                 </text>
               </g>
             {/each}
