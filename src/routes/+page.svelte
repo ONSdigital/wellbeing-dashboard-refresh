@@ -298,10 +298,10 @@
 
   function getQuarterMonthRange(quarterNumber) {
     const quarterRanges = {
-      1: "January-March",
-      2: "April-June",
-      3: "July-September",
-      4: "October-December",
+      1: "January to March",
+      2: "April to June",
+      3: "July to September",
+      4: "October to December",
     };
     return quarterRanges[quarterNumber] || "";
   }
@@ -361,8 +361,8 @@
         : `Quarter ${quarter} ${quarterMatch[2]}`;
     }
 
-    const indicatorPeriod = metadataBySeries?.[seriesId]?.indicator_period
-      ?.toLowerCase?.();
+    const indicatorPeriod =
+      metadataBySeries?.[seriesId]?.indicator_period?.toLowerCase?.();
     const d =
       fallbackDate instanceof Date ? fallbackDate : new Date(fallbackDate);
     if (
@@ -1245,7 +1245,7 @@
                 </div>
                 <p class="get-data-link">
                   {#if metadataBySeries[seriesId]?.data_source && metadataBySeries[seriesId]?.url}
-                    <span class="data-source">Source:{' '}</span>
+                    <span class="data-source">Source:{" "}</span>
                     <a
                       href={metadataBySeries[seriesId].url}
                       target="_blank"
@@ -1319,7 +1319,9 @@
                           String(sectionIndex + 1)
                         )}
                     >
-                      Go to the dataset for {getDatasetDisplayTitleById(seriesId)}
+                      Go to the dataset for {getDatasetDisplayTitleById(
+                        seriesId
+                      )}
                       <span class="screen-reader-only">(opens in new tab)</span>
                       <svg
                         class="external-icon"
