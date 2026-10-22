@@ -23,4 +23,5 @@ Metadata reference table
 | yMinMode            | Currently unused\*                                                                                                    |
 | data_source         | Source to show on the card (not needed if source shown elsewhere)                                                     |
 | url                 | URL for data set                                                                                                      |
+| series_colour       | Optional CSS colour for a series (used on two-series cards for chart line, labels, and markers)                     |
 | _Note_              | _Unused fields kept for future data vis logic_                                                                        |

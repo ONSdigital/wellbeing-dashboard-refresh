@@ -143,6 +143,15 @@
   const globalMaxDate = getGlobalMaxDate();
   const chartStartDate = getRollingWindowStartDate(globalMaxDate, 10);
 
+  function getSeriesColor(seriesId, fallbackColor = "#206095") {
+    const rawColor =
+      metadataBySeries?.[seriesId]?.series_colour ??
+      metadataBySeries?.[seriesId]?.series_color;
+    if (typeof rawColor !== "string") return fallbackColor;
+    const trimmed = rawColor.trim();
+    return trimmed || fallbackColor;
+  }
+
   function renderCards(category) {
     const entries = getSeriesEntriesByCategory(
       latestBySeries,
@@ -916,6 +925,10 @@
             {@const row = card.primaryRow}
             {@const secondarySeriesId = card.seriesEntries[1]?.seriesId}
             {@const secondaryRow = card.seriesEntries[1]?.row}
+            {@const primarySeriesColor = getSeriesColor(seriesId, "#206095")}
+            {@const secondarySeriesColor = secondarySeriesId
+              ? getSeriesColor(secondarySeriesId, "#27a0cc")
+              : ""}
             <button
               class="card {expandedCards[seriesId] ? 'expanded' : 'collapsed'}"
               on:click={() =>
@@ -970,7 +983,10 @@
                           <p class="compact-grid-header">Short term</p>
                           <p class="compact-grid-header">Long term</p>
 
-                          <p class="compact-series-name">
+                          <p
+                            class="compact-series-name"
+                            style={`color: ${primarySeriesColor};`}
+                          >
                             {metadataBySeries[seriesId]?.title ?? seriesId}
                           </p>
                           <div class="compact-two-series-cell">
@@ -988,7 +1004,10 @@
                               showLabel={false}
                             />
                           </div>
-                          <p class="compact-series-name">
+                          <p
+                            class="compact-series-name"
+                            style={`color: ${secondarySeriesColor};`}
+                          >
                             {metadataBySeries[secondarySeriesId]?.title ??
                               secondarySeriesId}
                           </p>
@@ -1065,7 +1084,7 @@
                     <LineChartSimple
                       data={row.full_series}
                       yKey="num_uk"
-                      lineColor="#206095"
+                      lineColor={primarySeriesColor}
                       startDate={chartStartDate}
                       endDate={globalMaxDate}
                       title={metadataBySeries[seriesId]?.title}
@@ -1099,7 +1118,10 @@
                           ) => ({
                             series_id: overlaySeriesId,
                             data: overlayRow.full_series,
-                            lineColor: idx % 2 === 0 ? "#27a0cc" : "#118C7B",
+                            lineColor: getSeriesColor(
+                              overlaySeriesId,
+                              idx % 2 === 0 ? "#27a0cc" : "#118C7B"
+                            ),
                             thin:
                               metadataBySeries[overlaySeriesId]?.thin_line ===
                               "TRUE",
@@ -1116,15 +1138,19 @@
                       {#if secondarySeriesId}
                         <p
                           class="latest-value-series-title latest-value-series-title-primary"
+                          style={`color: ${primarySeriesColor};`}
                         >
                           {metadataBySeries[seriesId]?.title ?? seriesId}
                         </p>
                       {/if}
                       <p class="latest-value-number">
-                        {formatLatestValue(seriesId, row)}
+                        <span style={`color: ${primarySeriesColor};`}
+                          >{formatLatestValue(seriesId, row)}</span
+                        >
                         {#if secondarySeriesId}
                           <span
                             class="latest-value-marker latest-value-marker-circle"
+                            style={`color: ${primarySeriesColor};`}
                             aria-hidden="true"
                           />
                         {/if}
@@ -1132,6 +1158,7 @@
                       {#if secondarySeriesId && secondaryRow}
                         <p
                           class="latest-value-series-title latest-value-series-title-secondary"
+                          style={`color: ${secondarySeriesColor};`}
                         >
                           {metadataBySeries[secondarySeriesId]?.title ??
                             secondarySeriesId}
@@ -1139,9 +1166,15 @@
                         <p
                           class="latest-value-number latest-value-number-secondary"
                         >
-                          {formatLatestValue(secondarySeriesId, secondaryRow)}
+                          <span style={`color: ${secondarySeriesColor};`}
+                            >{formatLatestValue(
+                              secondarySeriesId,
+                              secondaryRow
+                            )}</span
+                          >
                           <span
                             class="latest-value-marker latest-value-marker-diamond"
+                            style={`color: ${secondarySeriesColor};`}
                             aria-hidden="true"
                           />
                         </p>
@@ -1160,6 +1193,7 @@
                         >
                           <p
                             class="two-series-indicators-group-title two-series-indicators-group-title-primary"
+                            style={`color: ${primarySeriesColor};`}
                           >
                             {metadataBySeries[seriesId]?.title ?? seriesId}
                           </p>
@@ -1192,6 +1226,7 @@
                         >
                           <p
                             class="two-series-indicators-group-title two-series-indicators-group-title-secondary"
+                            style={`color: ${secondarySeriesColor};`}
                           >
                             {metadataBySeries[secondarySeriesId]?.title ??
                               secondarySeriesId}

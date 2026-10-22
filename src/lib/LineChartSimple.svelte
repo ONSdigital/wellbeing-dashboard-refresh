@@ -123,29 +123,76 @@
     return Number.isFinite(parsed) ? parsed : NaN;
   }
 
+  function buildCiData(points) {
+    return (Array.isArray(points) ? points : []).map((d) => {
+      const rawLower = toFiniteNumberOrNaN(d?.ci_lower);
+      const rawUpper = toFiniteNumberOrNaN(d?.ci_upper);
+      const lower =
+        thousandsBoolean && Number.isFinite(rawLower)
+          ? rawLower / 1000
+          : rawLower;
+      const upper =
+        thousandsBoolean && Number.isFinite(rawUpper)
+          ? rawUpper / 1000
+          : rawUpper;
+
+      return {
+        ...d,
+        ciLower: Math.min(lower, upper),
+        ciUpper: Math.max(lower, upper),
+        hasCi: Number.isFinite(lower) && Number.isFinite(upper),
+      };
+    });
+  }
+
+  function getCiValues(pointsWithCi) {
+    return (Array.isArray(pointsWithCi) ? pointsWithCi : []).flatMap((d) =>
+      d.hasCi ? [d.ciLower, d.ciUpper] : []
+    );
+  }
+
+  function colorWithAlpha(color, alpha) {
+    const safeAlpha = Math.max(0, Math.min(1, Number(alpha) || 0));
+    const value = String(color ?? "").trim();
+    const hex = value.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+
+    if (hex) {
+      const raw = hex[1];
+      const normalized =
+        raw.length === 3
+          ? raw
+              .split("")
+              .map((c) => c + c)
+              .join("")
+          : raw;
+      const r = parseInt(normalized.slice(0, 2), 16);
+      const g = parseInt(normalized.slice(2, 4), 16);
+      const b = parseInt(normalized.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
+    }
+
+    return value || "rgba(32, 96, 149, 0.28)";
+  }
+
   // Optional confidence interval support (ci_lower/ci_upper).
   // Blank or invalid CI values are ignored per row.
-  $: ciData = transformedData.map((d) => {
-    const rawLower = toFiniteNumberOrNaN(d?.ci_lower);
-    const rawUpper = toFiniteNumberOrNaN(d?.ci_upper);
-    const lower =
-      thousandsBoolean && Number.isFinite(rawLower)
-        ? rawLower / 1000
-        : rawLower;
-    const upper =
-      thousandsBoolean && Number.isFinite(rawUpper)
-        ? rawUpper / 1000
-        : rawUpper;
-
+  $: ciData = buildCiData(transformedData);
+  $: overlaySeriesWithCi = overlaySeriesResolved.map((series) => {
+    const seriesCiData = buildCiData(series.transformed);
+    const seriesCiValues = getCiValues(seriesCiData);
     return {
-      ...d,
-      ciLower: Math.min(lower, upper),
-      ciUpper: Math.max(lower, upper),
-      hasCi: Number.isFinite(lower) && Number.isFinite(upper),
+      ...series,
+      ciData: seriesCiData,
+      ciValues: seriesCiValues,
+      hasAnyCi: seriesCiValues.length > 0,
     };
   });
 
-  $: ciValues = ciData.flatMap((d) => (d.hasCi ? [d.ciLower, d.ciUpper] : []));
+  $: ciValues = [
+    ...getCiValues(ciData),
+    ...overlaySeriesWithCi.flatMap((series) => series.ciValues),
+  ];
+  $: primaryHasAnyCi = getCiValues(ciData).length > 0;
   $: hasAnyCi = ciValues.length > 0;
   $: ciMin = hasAnyCi ? Math.min(...ciValues) : NaN;
   $: ciMax = hasAnyCi ? Math.max(...ciValues) : NaN;
@@ -604,8 +651,12 @@
 
           <!-- Line series -->
           <g class="plot">
-            {#if hasAnyCi}
-              <path class="ci-band" d={ciAreaFn(ciData)} />
+            {#if primaryHasAnyCi}
+              <path
+                class="ci-band"
+                d={ciAreaFn(ciData)}
+                fill={colorWithAlpha(lineColor, 0.28)}
+              />
             {/if}
 
             <path
@@ -615,7 +666,15 @@
               stroke-width="{strokeWidth}px"
             />
 
-            {#each overlaySeriesResolved as series (series.series_id)}
+            {#each overlaySeriesWithCi as series (series.series_id)}
+              {#if series.hasAnyCi}
+                <path
+                  class="ci-band"
+                  d={ciAreaFn(series.ciData)}
+                  fill={colorWithAlpha(series.lineColor, 0.2)}
+                />
+              {/if}
+
               <path
                 class="line"
                 d={lineFn(series.transformed)}
@@ -708,7 +767,6 @@
   }
 
   .ci-band {
-    fill: rgba(32, 96, 149, 0.45);
     stroke: none;
   }
 
