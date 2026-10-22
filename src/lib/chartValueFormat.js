@@ -60,7 +60,7 @@ export function formatChartEndValue(
   }
 
   if (isPercentage) {
-    const dp = numeric < 20 ? 1 : hasDecimalTicks ? 1 : 0;
+    const dp = 1;
     const rounded = Math.round(numeric * 10 ** dp) / 10 ** dp;
     return format(`.${dp}%`)(rounded / 100);
   }
