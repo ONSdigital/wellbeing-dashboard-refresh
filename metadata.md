@@ -12,7 +12,7 @@ Metadata reference table
 | indicator_period    | Whether indicator is weekly (for weekly or daily frequency data) or monthly (for the MoM/WoW indicator text)          |
 | seasonal_adjusted   | TRUE = data is seasonally adjusted (not used in dashboard; appears in subtitle instead)                               |
 | units               | Whether indicator shows percentage change or percentage point change                                                  |
-| units_chart         | Whether the chart shows percentage or values                                                                          |
+| units_chart         | Whether the chart shows percentage, plain number values, or GBP currency values (for example `£` / `gbp`)           |
 | index               | Whether the chart shows an index (zero-style line at 100)                                                             |
 | custom_dp_chart     | Whether custom decimal places are needed on the chart data label (otherwise shows 0dp or 1dp for values under 20)     |
 | dp_chart            | If using custom decimal places for the chart data label, sets the number                                              |

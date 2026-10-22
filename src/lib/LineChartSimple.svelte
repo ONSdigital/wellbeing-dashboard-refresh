@@ -10,13 +10,43 @@
   } from "$lib/yAxisDomain.js";
   import { toBoolean, toNonNegativeIntOrNull } from "$lib/coerce.js";
 
+  function normalizeUnitsChart(unitsChart) {
+    return String(unitsChart ?? "").trim().toLowerCase();
+  }
+
+  function isPercentageUnits(unitsChart) {
+    const normalized = normalizeUnitsChart(unitsChart);
+    return normalized === "percentage" || normalized === "percent";
+  }
+
+  function isCurrencyUnits(unitsChart) {
+    const normalized = normalizeUnitsChart(unitsChart);
+    return (
+      normalized === "currency" ||
+      normalized === "gbp" ||
+      normalized === "pound" ||
+      normalized === "pounds" ||
+      normalized === "sterling" ||
+      normalized === "\u00a3"
+    );
+  }
+
+  function formatGbp(value, dp) {
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: "GBP",
+      minimumFractionDigits: dp,
+      maximumFractionDigits: dp,
+    }).format(value);
+  }
+
   // Props (existing)
   export let data = [];
   export let yKey = "value";
   export let yMax = undefined;
   export let lineColor = "#27a0cc";
   export let title;
-  export let units_chart; // e.g., "percentage"
+  export let units_chart; // e.g., "percentage", "number", "£"
   export let index = false;
   export let thousands = false;
   export let series_id = null; // identifier for this series
@@ -227,6 +257,15 @@
     return format(hasDecimal ? ".1%" : ".0%");
   })();
 
+  $: formatCurrency = (() => {
+    const hasDecimal = yTicks.some((t) => t % 1 !== 0);
+    const dp = hasDecimal ? 1 : 0;
+    return (value) => formatGbp(value, dp);
+  })();
+
+  $: isPercentageChart = isPercentageUnits(units_chart);
+  $: isCurrencyChart = isCurrencyUnits(units_chart);
+
   function isMonthOrQuarterPeriod(period) {
     const p = period?.toLowerCase?.();
     return (
@@ -380,12 +419,16 @@
 
   $: formatSRValue = (val) => {
     const numeric = typeof val === "number" ? val : Number(val);
+    const isPercentage = isPercentageUnits(units_chart);
+    const isCurrency = isCurrencyUnits(units_chart);
 
     if (customDpEnabled && dpOverride !== null) {
-      if (units_chart === "percentage") {
+      if (isPercentage) {
         return Number.isFinite(numeric)
           ? format(`.${dpOverride}%`)(numeric / 100)
           : "";
+      } else if (isCurrency) {
+        return Number.isFinite(numeric) ? formatGbp(numeric, dpOverride) : "";
       } else if (thousandsBoolean) {
         return Number.isFinite(numeric)
           ? format(`,.${dpOverride}f`)(numeric) + " thousand"
@@ -396,8 +439,10 @@
         : "";
     }
 
-    if (units_chart === "percentage") {
+    if (isPercentage) {
       return format(numeric < 20 ? ".1%" : ".0%")(numeric / 100);
+    } else if (isCurrency) {
+      return formatGbp(numeric, numeric < 20 ? 1 : 0);
     } else if (thousandsBoolean) {
       return format(numeric < 20 ? ",.1f" : ",.0f")(numeric) + " thousand";
     } else {
@@ -506,9 +551,11 @@
                   y="6"
                   class="small"
                 >
-                  {units_chart === "percentage"
+                  {isPercentageChart
                     ? formatPercent(tick / 100)
-                    : formatValue(tick)}
+                    : isCurrencyChart
+                      ? formatCurrency(tick)
+                      : formatValue(tick)}
                 </text>
               </g>
             {/each}
