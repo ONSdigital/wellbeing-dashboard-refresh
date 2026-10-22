@@ -43,6 +43,9 @@
   export let data;
 
   const { metadataBySeries, updatedBySeries } = data;
+  const categorySections = Array.isArray(data?.categorySections)
+    ? data.categorySections
+    : [];
 
   const { latestBySeries } = data;
   const dateCurrent = new Date(data.dates.current);
@@ -453,7 +456,7 @@
   // Track expanded state for each card
   let expandedCards = {};
 
-  const sectionCategories = ["headline", "health", "energy", "transport"];
+  const sectionCategories = categorySections.map((section) => section.category);
 
   $: visibleCardIds = sectionCategories.flatMap((category) =>
     renderCards(category).map((card) => card.primarySeriesId)
@@ -606,7 +609,8 @@
   function getSummaryTableEntries() {
     return getSummaryTableEntriesForCategories(
       latestBySeries,
-      metadataBySeries
+      metadataBySeries,
+      sectionCategories
     );
   }
 
@@ -899,10 +903,13 @@
     <Divider hr="full" />
   </div>
 
-  {#each [{ title: "Headline indicators", category: "headline" }, { title: "Health", category: "health" }, { title: "Energy and housing", category: "energy" }, { title: "Transport", category: "transport" }] as section, sectionIndex}
+  {#each categorySections as section, sectionIndex}
     <Section width="wide">
       <section aria-label="{section.title} section">
         <h2>{section.title}</h2>
+        {#if section.description}
+          <p class="category-description">{section.description}</p>
+        {/if}
         <div class="cards">
           {#each renderCards(section.category) as card}
             {@const seriesId = card.primarySeriesId}
@@ -1692,6 +1699,12 @@
   h2 {
     padding: 0px 0 11px 0;
     font-weight: 700;
+  }
+
+  .category-description {
+    margin: 0 0 16px;
+    color: #3d3d3d;
+    max-width: 60ch;
   }
 
   .cards {

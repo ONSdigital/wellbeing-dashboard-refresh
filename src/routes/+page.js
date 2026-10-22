@@ -5,6 +5,71 @@ const dataUrl = `${base}/data/data.csv`;
 const datesUrl = `${base}/data/header-details.json`;
 const metadataUrl = `${base}/data/metadata.csv`;
 const updatedUrl = `${base}/data/updated.csv`;
+const categoryDetailsUrl = `${base}/data/category-details.json`;
+
+function isShownInMetadata(meta) {
+  return (
+    String(meta?.show ?? "")
+      .trim()
+      .toLowerCase() === "true"
+  );
+}
+
+function toHumanReadableCategoryName(category) {
+  return String(category ?? "")
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getCategorySections(metadataArray, categoryDetailsArray) {
+  const categoryConfigByKey = new Map();
+
+  for (const item of categoryDetailsArray ?? []) {
+    const key = String(item?.category ?? "").trim();
+    if (!key) continue;
+
+    const order = Number(item?.order);
+    categoryConfigByKey.set(key, {
+      title: String(item?.title ?? "").trim(),
+      description: String(item?.description ?? "").trim(),
+      order: Number.isFinite(order) ? order : Number.POSITIVE_INFINITY,
+    });
+  }
+
+  const categoriesInMetadata = [];
+  const seen = new Set();
+
+  for (const meta of metadataArray ?? []) {
+    if (!isShownInMetadata(meta)) continue;
+    const key = String(meta?.category ?? "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    categoriesInMetadata.push(key);
+  }
+
+  return categoriesInMetadata
+    .map((category, metadataIndex) => {
+      const config = categoryConfigByKey.get(category);
+      return {
+        category,
+        metadataIndex,
+        order: config?.order ?? Number.POSITIVE_INFINITY,
+        title: config?.title || toHumanReadableCategoryName(category),
+        description: config?.description || "",
+      };
+    })
+    .sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.metadataIndex - b.metadataIndex;
+    })
+    .map(({ category, title, description }) => ({
+      category,
+      title,
+      description,
+    }));
+}
 
 function getDateYearsBack(date, yearsBack) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
@@ -97,8 +162,25 @@ function isMonthlyCadence(cadence) {
 export async function load({ fetch }) {
   let dates = await (await fetch(datesUrl)).json();
 
+  let categoryDetailsArray = [];
+  try {
+    const categoryDetailsRes = await fetch(categoryDetailsUrl);
+    if (categoryDetailsRes.ok) {
+      const parsed = await categoryDetailsRes.json();
+      if (Array.isArray(parsed)) {
+        categoryDetailsArray = parsed;
+      }
+    }
+  } catch {
+    categoryDetailsArray = [];
+  }
+
   const metadataStr = await (await fetch(metadataUrl)).text();
   const metadataArray = csvParse(metadataStr, autoType);
+  const categorySections = getCategorySections(
+    metadataArray,
+    categoryDetailsArray
+  );
 
   // Convert to a lookup object
   const metadataBySeries = {};
@@ -425,6 +507,7 @@ export async function load({ fetch }) {
     latestBySeries: result,
     metadataBySeries,
     updatedBySeries,
+    categorySections,
     dates,
   };
 }
