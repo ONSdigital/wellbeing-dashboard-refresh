@@ -97,7 +97,7 @@
     class="indicator-area no-change"
     style="background:{noChangeBackground}; color:{noChangeTextColor}"
   >
-    <span class="indicator-label">No change</span>
+    <span class="indicator-label">Stable</span>
   </div>
 {:else if assessment === "improved"}
   <div

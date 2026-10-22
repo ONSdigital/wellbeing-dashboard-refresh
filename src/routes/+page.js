@@ -154,6 +154,31 @@ function inferCadenceFromEntries(entries) {
   return "monthly";
 }
 
+function getMedianGapDays(entries) {
+  if (!Array.isArray(entries) || entries.length < 3) return null;
+
+  const gaps = [];
+  for (let i = 1; i < entries.length; i++) {
+    const prev = entries[i - 1]?.date;
+    const curr = entries[i]?.date;
+    if (!(prev instanceof Date) || Number.isNaN(prev.getTime())) continue;
+    if (!(curr instanceof Date) || Number.isNaN(curr.getTime())) continue;
+
+    const diffDays = (curr.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000);
+    if (Number.isFinite(diffDays) && diffDays > 0) {
+      gaps.push(diffDays);
+    }
+  }
+
+  if (!gaps.length) return null;
+
+  gaps.sort((a, b) => a - b);
+  const mid = Math.floor(gaps.length / 2);
+  return gaps.length % 2 === 0
+    ? (gaps[mid - 1] + gaps[mid]) / 2
+    : gaps[mid];
+}
+
 function isMonthlyCadence(cadence) {
   const c = cadence?.toLowerCase?.();
   return c === "monthly" || c === "month";
@@ -462,9 +487,20 @@ export async function load({ fetch }) {
     }
 
     // Short term = 1 calendar year back; long term = 5 calendar years back.
-    // Only accept a comparator when there is a nearby point for that cadence.
+    // Use the larger of metadata cadence and observed spacing to support
+    // irregular custom period series where metadata cadence can be too strict.
     const cadenceForLookback = dataFrequency ?? inferredCadence;
-    const maxDiffDays = getCadenceApproxDays(cadenceForLookback) * 2;
+    const cadenceToleranceDays = getCadenceApproxDays(cadenceForLookback) * 2;
+    const inferredToleranceDays = getCadenceApproxDays(inferredCadence) * 2;
+    const observedMedianGapDays = getMedianGapDays(entries);
+    const observedToleranceDays = Number.isFinite(observedMedianGapDays)
+      ? observedMedianGapDays * 1.5
+      : 0;
+    const maxDiffDays = Math.max(
+      cadenceToleranceDays,
+      inferredToleranceDays,
+      observedToleranceDays
+    );
 
     const prevPeriod = getClosestEntryToDate(
       entries,
