@@ -89,6 +89,13 @@
     comparisonDateText || formatComparisonDate(comparisonDate);
   const shouldBreakSinceDateLine =
     includesMonthOrQuarter(sinceDateText) && !isCustomDateRange(sinceDateText);
+
+  const comparisonPrefix =
+    assessment === "improved"
+      ? "Up from"
+      : assessment === "worsened"
+        ? "Down from"
+        : "From";
 </script>
 
 {#if showLabel}
@@ -134,10 +141,10 @@
 {#if showSinceDate && comparisonValueText && sinceDateText}
   <p class="text-indicator-period">
     {#if shouldBreakSinceDateLine}
-      <span>{comparisonValueText} in</span>
+      <span>{comparisonPrefix} {comparisonValueText} in</span>
       <span class="text-indicator-period-date">{sinceDateText}</span>
     {:else}
-      <span>{comparisonValueText} in {sinceDateText}</span>
+      <span>{comparisonPrefix} {comparisonValueText} in {sinceDateText}</span>
     {/if}
   </p>
 {/if}
