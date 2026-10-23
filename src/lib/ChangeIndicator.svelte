@@ -94,8 +94,8 @@
     assessment === "improved"
       ? "Up from"
       : assessment === "worsened"
-        ? "Down from"
-        : "From";
+      ? "Down from"
+      : "From";
 </script>
 
 {#if showLabel}
