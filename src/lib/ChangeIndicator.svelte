@@ -141,10 +141,16 @@
 {#if showSinceDate && comparisonValueText && sinceDateText}
   <p class="text-indicator-period">
     {#if shouldBreakSinceDateLine}
-      <span>{comparisonPrefix} {comparisonValueText} in</span>
-      <span class="text-indicator-period-date">{sinceDateText}</span>
+      <span class="text-indicator-period-line"
+        >{comparisonPrefix} {comparisonValueText} in</span
+      >
+      <span class="text-indicator-period-line text-indicator-period-date"
+        >{sinceDateText}</span
+      >
     {:else}
-      <span>{comparisonPrefix} {comparisonValueText} in {sinceDateText}</span>
+      <span class="text-indicator-period-balanced"
+        >{comparisonPrefix} {comparisonValueText} in {sinceDateText}</span
+      >
     {/if}
   </p>
 {/if}
@@ -200,7 +206,12 @@
     line-height: 1.35;
   }
 
-  .text-indicator-period span {
+  .text-indicator-period-line {
     display: block;
+  }
+
+  .text-indicator-period-balanced {
+    display: block;
+    text-wrap: balance;
   }
 </style>
