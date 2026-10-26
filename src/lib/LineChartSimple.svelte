@@ -294,6 +294,13 @@
     return date.getMonth() === 6; // July
   }
 
+  function formatXAxisYearLabel(year, chartWidth) {
+    if (chartWidth && chartWidth < 460) {
+      return String(year % 100).padStart(2, "0");
+    }
+    return String(year);
+  }
+
   // New prop: showYearDividersAtDomainEdges (default true for backward compatibility)
   export let showYearDividersAtDomainEdges = false;
 
@@ -720,7 +727,7 @@
                   y={height - margin.bottom + 20}
                   text-anchor="middle"
                 >
-                  {year}
+                  {formatXAxisYearLabel(year, width)}
                 </text>
               {/if}
             {/each}

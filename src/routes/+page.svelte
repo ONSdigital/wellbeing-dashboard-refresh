@@ -2540,6 +2540,25 @@
     .layout-container {
       gap: 24px;
       margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .layout-container .indicators-container {
+      display: contents;
+    }
+
+    .layout-container .indicators-header {
+      order: 1;
+    }
+
+    .layout-container .chart {
+      order: 2;
+    }
+
+    .layout-container .indicators-row,
+    .layout-container .two-series-indicators-row {
+      order: 3;
     }
 
     .layout-container--two-series {
@@ -2563,6 +2582,12 @@
 
     .indicators-header p {
       margin-top: 4px;
+    }
+
+    .indicators-header .latest-value-period--single {
+      display: inline;
+      margin: 0 0 0 8px;
+      vertical-align: baseline;
     }
 
     .indicators-row {
