@@ -8,7 +8,8 @@
   {
     "category": "health",
     "title": "Health",
+    "image": "img/health.svg",
     "order": 2,
-    "description": "Indicators tracking healthy life expectancy outcomes."
+    "description": "Physical and mental health are important parts of people's personal well-being. Measures in this topic area cover both objective and subjective measures of health. They also cover satisfaction with the healthcare system to capture how the nation's health is supported."
   }
 ]

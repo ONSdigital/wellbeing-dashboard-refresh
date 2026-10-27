@@ -294,8 +294,10 @@
     return date.getMonth() === 6; // July
   }
 
+  const YEAR_ABBREVIATION_WIDTH = 460;
+
   function formatXAxisYearLabel(year, chartWidth) {
-    if (chartWidth && chartWidth < 460) {
+    if (chartWidth && chartWidth < YEAR_ABBREVIATION_WIDTH) {
       return String(year % 100).padStart(2, "0");
     }
     return String(year);
@@ -749,7 +751,11 @@
           <!-- Line series -->
           <g class="plot">
             {#if primaryHasAnyCi}
-              <path class="ci-band" d={ciAreaFn(ciData)} />
+              <path
+                class="ci-band"
+                d={ciAreaFn(ciData)}
+                style={`fill: ${lineColor}; fill-opacity: 0.25;`}
+              />
             {/if}
 
             {#each overlaySeriesResolved as series (series.series_id)}
@@ -785,7 +791,7 @@
                 class="line-point"
                 cx={x(lastPoint[xKey])}
                 cy={y(lastPoint[yKey])}
-                r="4"
+                r="4.5"
                 fill={lineColor}
               />
 

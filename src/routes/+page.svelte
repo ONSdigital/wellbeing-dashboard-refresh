@@ -169,8 +169,6 @@
       if (!grouped.has(cardId)) {
         grouped.set(cardId, {
           cardId,
-          primarySeriesId: seriesId,
-          primaryRow: row,
           cardTitle: meta?.card_title || meta?.title || seriesId,
           cardDescription: meta?.card_description || meta?.description || "",
           seriesEntries: [],
@@ -180,7 +178,22 @@
       grouped.get(cardId).seriesEntries.push({ seriesId, row });
     }
 
-    return Array.from(grouped.values());
+    return Array.from(grouped.values()).map((card) => {
+      card.seriesEntries.sort((a, b) => {
+        const aValue = toNumberOrNaN(a.row?.num_uk);
+        const bValue = toNumberOrNaN(b.row?.num_uk);
+        const aIsFinite = Number.isFinite(aValue);
+        const bIsFinite = Number.isFinite(bValue);
+
+        if (aIsFinite !== bIsFinite) return aIsFinite ? -1 : 1;
+        if (!aIsFinite) return 0;
+        return bValue - aValue;
+      });
+
+      card.primarySeriesId = card.seriesEntries[0]?.seriesId;
+      card.primaryRow = card.seriesEntries[0]?.row;
+      return card;
+    });
   }
 
   function getUnitSuffix(seriesId) {
@@ -925,6 +938,56 @@
   {/if}
 
   <Section width="wide">
+    <Twisty title="About the change indicators" open={false}>
+      <div class="change-legend">
+        <p class="change-legend-title">
+          Change in measures is classified by its relationship with wellbeing.
+        </p>
+        <ul>
+          <li>
+            <ChangeIndicator
+              assessmentOverride="improved"
+              compact={true}
+              showLabel={false}
+            />
+            <span>Direction of change is considered an improvement for wellbeing.</span>
+          </li>
+          <li>
+            <ChangeIndicator
+              assessmentOverride="worsened"
+              compact={true}
+              showLabel={false}
+            />
+            <span>Direction of change is considered a worsening for wellbeing.</span>
+          </li>
+          <li>
+            <ChangeIndicator
+              assessmentOverride="no change"
+              compact={true}
+              showLabel={false}
+            />
+            <span>No statistically significant change.</span>
+          </li>
+          <li>
+            <ChangeIndicator
+              assessmentOverride="not assessed"
+              compact={true}
+              showLabel={false}
+            />
+            <span>Change has not been assessed.</span>
+          </li>
+        </ul>
+        <p class="change-legend-guide">
+          For more on the change indicators, including reasons why change may
+          not have been assessed, see the
+          <a
+            href="https://www.ons.gov.uk/peoplepopulationandcommunity/wellbeing/methodologies/ukmeasuresofnationalwellbeinguserguide"
+            >UK Measures of National Wellbeing user guide</a
+          >.
+        </p>
+      </div>
+    </Twisty>
+
     <div class="intro-row">
       <p class="intro-text">
         Click on any row to view more detail for that indicator.
@@ -957,7 +1020,18 @@
   {#each categorySections as section, sectionIndex}
     <Section width="wide">
       <section aria-label="{section.title} section">
-        <h2>{section.title}</h2>
+        <h2 class:category-heading-with-image={section.image}>
+          {section.title}
+          {#if section.image}
+            <img
+              class="category-image"
+              src={section.image}
+              alt=""
+              width="36"
+              height="36"
+            />
+          {/if}
+        </h2>
         {#if section.description}
           <p class="category-description">{section.description}</p>
         {/if}
@@ -1188,19 +1262,26 @@
                             >{latestValuePartsBySeries?.[seriesId]?.value ??
                               formatLatestValue(seriesId, row)}</span
                           >
-                          {#if latestValuePartsBySeries?.[seriesId]?.suffix}
+                          {#if secondarySeriesId}
+                            <span class="latest-value-unit-marker">
+                              {#if latestValuePartsBySeries?.[seriesId]?.suffix}
+                                <span class="latest-value-suffix"
+                                  >{latestValuePartsBySeries[seriesId]
+                                    .suffix}</span
+                                >
+                              {/if}
+                              <span
+                                class="latest-value-marker latest-value-marker-circle"
+                                style={`color: ${primarySeriesColor};`}
+                                aria-hidden="true"
+                              />
+                            </span>
+                          {:else if latestValuePartsBySeries?.[seriesId]?.suffix}
                             <span class="latest-value-suffix"
                               >{latestValuePartsBySeries[seriesId].suffix}</span
                             >
                           {/if}
                         </span>
-                        {#if secondarySeriesId}
-                          <span
-                            class="latest-value-marker latest-value-marker-circle"
-                            style={`color: ${primarySeriesColor};`}
-                            aria-hidden="true"
-                          />
-                        {/if}
                       </p>
                       {#if secondarySeriesId && secondaryRow}
                         <p
@@ -1225,18 +1306,20 @@
                                   secondaryRow
                                 )}</span
                             >
-                            {#if latestValuePartsBySeries?.[secondarySeriesId]?.suffix}
-                              <span class="latest-value-suffix"
-                                >{latestValuePartsBySeries[secondarySeriesId]
-                                  .suffix}</span
-                              >
-                            {/if}
+                            <span class="latest-value-unit-marker">
+                              {#if latestValuePartsBySeries?.[secondarySeriesId]?.suffix}
+                                <span class="latest-value-suffix"
+                                  >{latestValuePartsBySeries[secondarySeriesId]
+                                    .suffix}</span
+                                >
+                              {/if}
+                              <span
+                                class="latest-value-marker latest-value-marker-diamond"
+                                style={`color: ${secondarySeriesColor};`}
+                                aria-hidden="true"
+                              />
+                            </span>
                           </span>
-                          <span
-                            class="latest-value-marker latest-value-marker-diamond"
-                            style={`color: ${secondarySeriesColor};`}
-                            aria-hidden="true"
-                          />
                         </p>
                       {/if}
                       <p
@@ -1769,6 +1852,12 @@
 </Embed>
 
 <style>
+  :global(.embed-container) {
+    width: 100%;
+    max-width: 950px;
+    min-width: 0;
+  }
+
   :global(body) {
     margin: 0;
     padding: 0;
@@ -1792,6 +1881,17 @@
   h2 {
     padding: 0px 0 11px 0;
     font-weight: 700;
+  }
+
+  .category-heading-with-image {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .category-image {
+    flex-shrink: 0;
+    object-fit: contain;
   }
 
   .category-description {
@@ -1912,7 +2012,13 @@
   .card .latest-value-text {
     display: inline-flex;
     align-items: baseline;
-    gap: 2px;
+    gap: 5px;
+  }
+
+  .card .latest-value-unit-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .card .latest-value-suffix {
@@ -1929,10 +2035,14 @@
   }
 
   .card .latest-value-marker-circle {
+    width: 13.8px;
+    height: 13.8px;
     border-radius: 50%;
   }
 
   .card .latest-value-marker-diamond {
+    width: 10.8px;
+    height: 10.8px;
     border-radius: 0;
     transform: rotate(45deg);
   }
@@ -2404,6 +2514,47 @@
     flex-wrap: wrap;
   }
 
+  .change-legend {
+    width: 100%;
+    max-width: 950px;
+    min-width: 0;
+    margin: 0 auto 20px;
+  }
+
+  .change-legend-title {
+    margin: 0 0 16px;
+    font-size: 18px;
+  }
+
+  .change-legend-guide {
+    margin: 16px 0 0;
+    font-size: 18px;
+  }
+
+  .change-legend ul {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px 24px;
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .change-legend li {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .change-legend li > span {
+    flex: 1;
+    min-width: 0;
+    font-size: 18px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
   .intro-text {
     margin: 0;
     color: #666;
@@ -2573,7 +2724,55 @@
 
     .layout-container--two-series .two-series-indicators-child {
       padding-top: 6px;
-      gap: 12px;
+      column-gap: 12px;
+      row-gap: 2px;
+    }
+
+    .layout-container--two-series .two-series-indicators-child-secondary {
+      padding-top: 18px;
+    }
+
+    .layout-container--two-series
+      .two-series-indicators-child
+      :global(.text-indicator-sm) {
+      margin-top: 6px;
+    }
+
+    .layout-container--two-series .indicators-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      column-gap: 16px;
+      row-gap: 4px;
+      align-items: end;
+    }
+
+    .layout-container--two-series .latest-value-series-title-primary {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .layout-container--two-series .latest-value-number {
+      grid-column: 1;
+      grid-row: 2;
+      margin: 0;
+    }
+
+    .layout-container--two-series .latest-value-series-title-secondary {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .layout-container--two-series .latest-value-number-secondary {
+      grid-column: 2;
+      grid-row: 2;
+      margin: 0;
+      justify-self: start;
+    }
+
+    .layout-container--two-series .latest-value-period {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      margin-top: 8px;
     }
 
     .indicators-header {

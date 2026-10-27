@@ -43,7 +43,16 @@ To build the preview version of the app, which uses the alternate **base_preview
 npm run build:preview
 ```
 
+## Category header images
+
+Category headers are configured in [static/data/category-details.json](static/data/category-details.json).
+Add an optional `"image": "img/health.svg"` field to display a decorative image
+alongside the category title. Local paths are relative to the `static` folder
+and automatically include the deployment base path; HTTPS image URLs are also
+supported. Omit `image`, or leave it empty, to keep a text-only header.
+
 ## Additional templates
+
 
 The following semi-automated journalism (AKA "robo-journalism") templates are also available:
 

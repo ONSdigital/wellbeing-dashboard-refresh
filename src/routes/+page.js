@@ -31,9 +31,15 @@ function getCategorySections(metadataArray, categoryDetailsArray) {
     if (!key) continue;
 
     const order = Number(item?.order);
+    const image = String(item?.image ?? "").trim();
     categoryConfigByKey.set(key, {
       title: String(item?.title ?? "").trim(),
       description: String(item?.description ?? "").trim(),
+      image: image
+        ? /^(?:https?:)?\/\//i.test(image)
+          ? image
+          : `${base}/${image.replace(/^\/+/, "")}`
+        : "",
       order: Number.isFinite(order) ? order : Number.POSITIVE_INFINITY,
     });
   }
@@ -58,16 +64,18 @@ function getCategorySections(metadataArray, categoryDetailsArray) {
         order: config?.order ?? Number.POSITIVE_INFINITY,
         title: config?.title || toHumanReadableCategoryName(category),
         description: config?.description || "",
+        image: config?.image || "",
       };
     })
     .sort((a, b) => {
       if (a.order !== b.order) return a.order - b.order;
       return a.metadataIndex - b.metadataIndex;
     })
-    .map(({ category, title, description }) => ({
+    .map(({ category, title, description, image }) => ({
       category,
       title,
       description,
+      image,
     }));
 }
 

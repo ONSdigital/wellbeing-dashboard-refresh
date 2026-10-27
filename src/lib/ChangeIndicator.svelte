@@ -9,6 +9,10 @@
   // Control whether to show the label text
   export let showLabel = true;
 
+  // Use a fixed assessment when displaying the indicator outside a data card
+  export let assessmentOverride = null;
+  export let compact = false;
+
   // Show comparison date text under the indicator when needed
   export let showSinceDate = false;
   export let comparisonDate = null;
@@ -50,7 +54,7 @@
     label === "year"
       ? indicatorMeta?.assessment_lt
       : indicatorMeta?.assessment_st;
-  const assessment = normalizeAssessment(assessmentValue);
+  const assessment = normalizeAssessment(assessmentOverride ?? assessmentValue);
 
   function formatComparisonDate(value) {
     const d = value instanceof Date ? value : new Date(value);
@@ -105,12 +109,17 @@
 {/if}
 
 {#if !assessment}
-  <div class="indicator-area no-change" style="background:{noChangeBackground}">
+  <div
+    class="indicator-area no-change"
+    class:compact
+    style="background:{noChangeBackground}"
+  >
     <span class="indicator-label">Not available</span>
   </div>
 {:else if assessment === "no change"}
   <div
     class="indicator-area no-change"
+    class:compact
     style="background:{noChangeBackground}; color:{noChangeTextColor}"
   >
     <span class="indicator-label">Stable</span>
@@ -118,6 +127,7 @@
 {:else if assessment === "improved"}
   <div
     class="indicator-area increase"
+    class:compact
     style="background:{increaseBackground}; color:{increaseArrowColor}"
   >
     <span class="indicator-label">Improved</span>
@@ -125,6 +135,7 @@
 {:else if assessment === "not assessed"}
   <div
     class="indicator-area not-assessed"
+    class:compact
     style="color:{notAssessedTextColor}; --not-assessed-border-color:{notAssessedBorderColor}"
   >
     <span class="indicator-label">Not assessed</span>
@@ -132,6 +143,7 @@
 {:else}
   <div
     class="indicator-area decrease"
+    class:compact
     style="background:{decreaseBackground}; color:{decreaseArrowColor}"
   >
     <span class="indicator-label">Worsened</span>
@@ -172,6 +184,11 @@
     place-items: center;
     vertical-align: middle;
     box-sizing: border-box;
+  }
+
+  .indicator-area.compact {
+    padding: 4px 8px;
+    margin-top: 0;
   }
 
   .indicator-area::before {
