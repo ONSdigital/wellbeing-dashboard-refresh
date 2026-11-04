@@ -754,7 +754,7 @@
               <path
                 class="ci-band"
                 d={ciAreaFn(ciData)}
-                style={`fill: ${lineColor}; fill-opacity: 0.25;`}
+                style={`fill: ${lineColor}; fill-opacity: 0.35;`}
               />
             {/if}
 
@@ -869,12 +869,12 @@
   }
 
   .ci-band {
-    fill: rgba(32, 96, 149, 0.45);
+    fill: rgba(32, 96, 149, 0.35);
     stroke: none;
   }
 
   .ci-band-overlay {
-    fill-opacity: 0.25;
+    fill-opacity: 0.35;
   }
 
   .tick-line {

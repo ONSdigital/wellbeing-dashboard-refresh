@@ -938,10 +938,14 @@
   {/if}
 
   <Section width="wide">
-    <Twisty title="About the change indicators" open={false}>
+    <Twisty title="About the change labels" open={false}>
       <div class="change-legend">
         <p class="change-legend-title">
-          Change in measures is classified by its relationship with wellbeing.
+          Change in measures is classified by its relationship with wellbeing
+          and if there has been a statistically significant change more
+          information on statistical significance and confidence intervals is
+          available.
+          https://www.ons.gov.uk/methodology/methodologytopicsandstatisticalconcepts/uncertaintyandhowwemeasureit#confidence-interval
         </p>
         <ul>
           <li>
@@ -950,7 +954,9 @@
               compact={true}
               showLabel={false}
             />
-            <span>Direction of change is considered an improvement for wellbeing.</span>
+            <span
+              >Direction of change is considered an improvement for wellbeing</span
+            >
           </li>
           <li>
             <ChangeIndicator
@@ -958,7 +964,9 @@
               compact={true}
               showLabel={false}
             />
-            <span>Direction of change is considered a worsening for wellbeing.</span>
+            <span
+              >Direction of change is considered worsening for wellbeing</span
+            >
           </li>
           <li>
             <ChangeIndicator
@@ -966,7 +974,7 @@
               compact={true}
               showLabel={false}
             />
-            <span>No statistically significant change.</span>
+            <span>No statistically significant change</span>
           </li>
           <li>
             <ChangeIndicator
@@ -1004,6 +1012,13 @@
         >
           {anyCardsExpanded ? "Close all cards" : "Expand all cards"}
         </Button>
+      </div>
+
+      <div class="confidence-interval-legend">
+        <span class="confidence-interval-swatch" aria-hidden="true" />
+        <span
+          >Shaded area on charts is the likely range (95% confidence interval)</span
+        >
       </div>
     </div>
 
@@ -2507,11 +2522,10 @@
   .intro-row {
     max-width: 950px;
     margin: 0 auto;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
+    gap: 8px 16px;
   }
 
   .change-legend {
@@ -2561,11 +2575,33 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1 1 420px;
+    min-width: 0;
   }
 
   .intro-text img {
     transform: scale(0.8);
+  }
+
+  .confidence-interval-legend {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    grid-column: 1 / -1;
+    color: #666;
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  .confidence-interval-legend span {
+    margin-top: 3px;
+  }
+
+  .confidence-interval-legend .confidence-interval-swatch {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 12px;
+    margin-top: 6px;
+    background: rgb(32 96 149 / 35%);
   }
 
   .cards-controls {
@@ -2631,8 +2667,13 @@
     }
 
     .compact-two-series {
-      --compact-series-col-width: 150px;
-      --compact-grid-col-gap: 10px;
+      --compact-series-col-width: minmax(0, 1fr);
+      --compact-grid-col-gap: 3px;
+      width: 100%;
+    }
+
+    .compact-two-series :global(.indicator-area)::before {
+      content: none;
     }
 
     .compact-series-name {
