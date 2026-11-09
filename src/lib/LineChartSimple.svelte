@@ -52,8 +52,6 @@
   export let index = false;
   export let thousands = false;
   export let series_id = null; // identifier for this series
-  export let thinSeries = null; // which series_id should be thinner
-  export let indicator_period = null; // frequency for date formatting (e.g., "monthly", "weekly")
   export let overlaySeries = []; // optional additional series to draw on the same chart
 
   // Normalize `index` prop so strings like "false"/"0" don't evaluate truthy
@@ -67,9 +65,8 @@
   export let meta = {};
 
   // Internals
-  // Determine stroke width based on series_id
-  let baseStrokeWidth;
-  $: baseStrokeWidth = thinSeries && series_id === thinSeries ? 2 : 3;
+  // Determine stroke width
+  let baseStrokeWidth = 3;
   $: strokeWidth =
     width && +width < 500 ? baseStrokeWidth - 0.5 : baseStrokeWidth;
   $: thousandsBoolean = toBoolean(thousands);
@@ -99,7 +96,6 @@
       return {
         series_id: series?.series_id ?? `overlay-${idx}`,
         lineColor: series?.lineColor ?? "#27a0cc",
-        thin: !!series?.thin,
         ciData: buildCiData(transformed, thousandsBoolean),
         transformed,
       };
@@ -278,13 +274,6 @@
 
   $: isPercentageChart = isPercentageUnits(units_chart);
   $: isCurrencyChart = isCurrencyUnits(units_chart);
-
-  function isMonthOrQuarterPeriod(period) {
-    const p = period?.toLowerCase?.();
-    return (
-      p === "monthly" || p === "month" || p === "quarterly" || p === "quarter"
-    );
-  }
 
   function getQuarterFromDate(date) {
     return Math.floor(date.getMonth() / 3) + 1;
@@ -472,27 +461,25 @@
     const sorted = [...transformedData].sort((a, b) => a[xKey] - b[xKey]);
     const gaps = [];
 
-    const periodCadenceDays = getCadenceApproxDays(indicator_period);
     const observedMedianDays = getObservedMedianGapDays(sorted, xKey);
     const observedCadenceDays = inferCadenceFromMedianDays(observedMedianDays);
-    const hasStandardCadence = Number.isFinite(periodCadenceDays);
     const hasCustomRanges = hasCustomTextualDateRanges(sorted);
 
     // Custom textual ranges are irregular by design. Keep only the
     // initial start-gap behavior and treat cadence as quarterly.
     const cadenceForStartGapDays = hasCustomRanges
       ? 92
-      : hasStandardCadence
-      ? observedCadenceDays ?? periodCadenceDays
+      : Number.isFinite(observedCadenceDays)
+      ? observedCadenceDays
       : null;
 
-    const useInternalCadenceGaps = hasStandardCadence && !hasCustomRanges;
+    const useInternalCadenceGaps = Number.isFinite(observedCadenceDays) && !hasCustomRanges;
 
     const startGapThresholdDays = Number.isFinite(cadenceForStartGapDays)
       ? cadenceForStartGapDays * START_GAP_FACTOR
       : null;
     const internalGapThresholdDays = useInternalCadenceGaps
-      ? (observedCadenceDays ?? periodCadenceDays) *
+      ? observedCadenceDays *
         INTERNAL_INTERVAL_GAP_FACTOR
       : null;
 
@@ -599,62 +586,42 @@
   };
 
   $: firstDate = firstDataPoint
-    ? isMonthOrQuarterPeriod(indicator_period)
-      ? firstDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-        })
-      : firstDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+    ? firstDataPoint.date.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
     : "";
 
   $: lastDate = lastDataPoint
-    ? isMonthOrQuarterPeriod(indicator_period)
-      ? lastDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-        })
-      : lastDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+    ? lastDataPoint.date.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
     : "";
 
   $: maxDate = maxDataPoint
-    ? isMonthOrQuarterPeriod(indicator_period)
-      ? maxDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-        })
-      : maxDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+    ? maxDataPoint.date.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
     : "";
 
   $: minDate = minDataPoint
-    ? isMonthOrQuarterPeriod(indicator_period)
-      ? minDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-        })
-      : minDataPoint.date.toLocaleDateString("en-GB", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
+    ? minDataPoint.date.toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
     : "";
 
   $: formattedValue = lastDataPoint ? formatSRValue(lastDataPoint[yKey]) : "";
   $: formattedMaxValue = maxDataPoint ? formatSRValue(maxDataPoint[yKey]) : "";
   $: formattedMinValue = minDataPoint ? formatSRValue(minDataPoint[yKey]) : "";
 
-  $: datePreposition = isMonthOrQuarterPeriod(indicator_period) ? "in" : "on";
+  $: datePreposition = "on";
 
   $: latestIsHighest =
     lastDataPoint && maxDataPoint

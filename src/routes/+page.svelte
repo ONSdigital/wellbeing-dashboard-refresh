@@ -42,7 +42,7 @@
   } from "$lib/yAxisDomain.js";
   export let data;
 
-  const { metadataBySeries, updatedBySeries } = data;
+  const { metadataBySeries } = data;
   const categorySections = Array.isArray(data?.categorySections)
     ? data.categorySections
     : [];
@@ -84,23 +84,8 @@
     )
   );
 
-  function isUpdatedThisWeek(seriesId) {
-    return toBoolean(updatedBySeries?.[seriesId]);
-  }
-
-  function isNewIndicator(seriesId) {
-    return toBoolean(metadataBySeries?.[seriesId]?.new_indicator);
-  }
-  function shouldShowUpdateFlag(seriesId) {
-    return isUpdatedThisWeek(seriesId) || isNewIndicator(seriesId);
-  }
-
-  function getUpdateFlagText(seriesId) {
-    return isNewIndicator(seriesId) ? "New indicator" : "Updated this week";
-  }
-
   function getUpdateFlagSrText(seriesId) {
-    return `${getUpdateFlagText(seriesId)}.`;
+    return `New indicator.`;
   }
 
   function toggleEvent(e, label, sectionTitle, sectionNumber) {
@@ -349,10 +334,7 @@
   }
 
   function isMonthOrQuarterPeriod(period) {
-    const p = period?.toLowerCase?.();
-    return (
-      p === "monthly" || p === "month" || p === "quarterly" || p === "quarter"
-    );
+    return false;
   }
 
   function getQuarterMonthRange(quarterNumber) {
@@ -393,15 +375,6 @@
       return "";
     }
 
-    if (
-      isMonthOrQuarterPeriod(metadataBySeries?.[seriesId]?.indicator_period)
-    ) {
-      return d.toLocaleDateString("en-GB", {
-        year: "numeric",
-        month: "long",
-      });
-    }
-
     return d.toLocaleDateString("en-GB", {
       year: "numeric",
       month: "long",
@@ -418,22 +391,6 @@
       return quarterRange
         ? `Quarter ${quarter} ${quarterMatch[2]} (${quarterRange})`
         : `Quarter ${quarter} ${quarterMatch[2]}`;
-    }
-
-    const indicatorPeriod =
-      metadataBySeries?.[seriesId]?.indicator_period?.toLowerCase?.();
-    const d =
-      fallbackDate instanceof Date ? fallbackDate : new Date(fallbackDate);
-    if (
-      (indicatorPeriod === "quarterly" || indicatorPeriod === "quarter") &&
-      d instanceof Date &&
-      !Number.isNaN(d.getTime())
-    ) {
-      const quarter = Math.floor(d.getMonth() / 3) + 1;
-      const quarterRange = getQuarterMonthRange(quarter);
-      return quarterRange
-        ? `Quarter ${quarter} ${d.getFullYear()} (${quarterRange})`
-        : `Quarter ${quarter} ${d.getFullYear()}`;
     }
 
     return formatExpandedDateLabel(rawLabel, fallbackDate, seriesId);
@@ -465,10 +422,6 @@
       return "N/A";
     }
 
-    if (isMonthOrQuarterPeriod(meta?.indicator_period)) {
-      return lastDate.toLocaleDateString("en-GB", { month: "long" });
-    }
-
     return lastDate.toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
@@ -489,24 +442,7 @@
   }
 
   function getTimePeriod(metadata) {
-    const indicator_period = metadata?.indicator_period?.toLowerCase?.();
-    if (
-      indicator_period === "daily" ||
-      indicator_period === "day" ||
-      indicator_period === "weekly" ||
-      indicator_period === "week"
-    ) {
-      return "week";
-    } else if (indicator_period === "monthly" || indicator_period === "month") {
-      return "month";
-    } else if (
-      indicator_period === "quarterly" ||
-      indicator_period === "quarter"
-    ) {
-      return "quarter";
-    } else {
-      return "period";
-    }
+    return "period";
   }
 
   // Track expanded state for each card
@@ -682,8 +618,6 @@
     const headers = [
       "Series",
       "Unit Label",
-      "Data frequency",
-      "Indicator frequency",
       "Latest Value",
       "Date Last Updated",
       "Date for Latest Change",
@@ -696,9 +630,6 @@
 
     const rows = getSummaryTableEntries().map(([seriesId, row]) => {
       const unitLabel = metadataBySeries[seriesId]?.units ?? "";
-      const dataFrequency = metadataBySeries[seriesId]?.data_frequency ?? "";
-      const indicatorFrequency =
-        metadataBySeries[seriesId]?.indicator_period ?? "";
 
       // These columns are *relative percent changes* (not percentage-point deltas)
       const percentSuffix = "%";
@@ -706,8 +637,6 @@
       return [
         metadataBySeries[seriesId]?.title ?? seriesId,
         unitLabel,
-        dataFrequency,
-        indicatorFrequency,
         formatNumberForCsv(row.num_uk),
         formatDateForCsv(row.date),
         formatDateForCsv(row.period_over_period_date),
@@ -941,11 +870,13 @@
     <Twisty title="About the change labels" open={false}>
       <div class="change-legend">
         <p class="change-legend-title">
-          Change in measures is classified by its relationship with wellbeing
-          and if there has been a statistically significant change more
-          information on statistical significance and confidence intervals is
-          available.
-          https://www.ons.gov.uk/methodology/methodologytopicsandstatisticalconcepts/uncertaintyandhowwemeasureit#confidence-interval
+          For each indicator change is classified by its relationship with
+          wellbeing and if there has been a statistically significant change.
+          More information on statistical significance see our
+          <a
+            href="https://www.ons.gov.uk/methodology/methodologytopicsandstatisticalconcepts/uncertaintyandhowwemeasureit#confidence-interval"
+            >Guidance on uncertainty</a
+          >.
         </p>
         <ul>
           <li>
@@ -1217,12 +1148,6 @@
                       index={metadataBySeries[seriesId]?.index}
                       thousands={metadataBySeries[seriesId]?.thousands}
                       series_id={seriesId}
-                      thinSeries={metadataBySeries[seriesId]?.thin_line ===
-                      "TRUE"
-                        ? seriesId
-                        : null}
-                      indicator_period={metadataBySeries[seriesId]
-                        ?.indicator_period}
                       meta={{
                         yMinMode:
                           metadataBySeries[seriesId]?.yMinMode ?? "auto",
@@ -1247,9 +1172,6 @@
                               overlaySeriesId,
                               idx % 2 === 0 ? "#27a0cc" : "#118C7B"
                             ),
-                            thin:
-                              metadataBySeries[overlaySeriesId]?.thin_line ===
-                              "TRUE",
                           })
                         )}
                       showYearDividersAtDomainEdges={false}
@@ -1582,14 +1504,6 @@
                 >
                 <th
                   style="padding: 8px; border: 1px solid #ccc; text-align: right;"
-                  >Data frequency</th
-                >
-                <th
-                  style="padding: 8px; border: 1px solid #ccc; text-align: right;"
-                  >Indicator frequency</th
-                >
-                <th
-                  style="padding: 8px; border: 1px solid #ccc; text-align: right;"
                   >Latest Value</th
                 >
                 <th
@@ -1635,14 +1549,6 @@
                   <td
                     style="padding: 8px; border: 1px solid #ccc; text-align: right;"
                     >{metadataBySeries[seriesId]?.units || "N/A"}</td
-                  >
-                  <td
-                    style="padding: 8px; border: 1px solid #ccc; text-align: right;"
-                    >{metadataBySeries[seriesId]?.data_frequency ?? "N/A"}</td
-                  >
-                  <td
-                    style="padding: 8px; border: 1px solid #ccc; text-align: right;"
-                    >{metadataBySeries[seriesId]?.indicator_period ?? "N/A"}</td
                   >
                   <td
                     style="padding: 8px; border: 1px solid #ccc; text-align: right;"

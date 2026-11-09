@@ -4,7 +4,6 @@ import { csvParse, autoType } from "d3-dsv";
 const dataUrl = `${base}/data/data.csv`;
 const datesUrl = `${base}/data/header-details.json`;
 const metadataUrl = `${base}/data/metadata.csv`;
-const updatedUrl = `${base}/data/updated.csv`;
 const categoryDetailsUrl = `${base}/data/category-details.json`;
 
 function isShownInMetadata(meta) {
@@ -132,7 +131,6 @@ function getClosestEntryToDate(entries, targetDate, maxDiffDays = Infinity) {
 }
 
 // Infer underlying data cadence from the time series itself.
-// This helps when indicator_period is quarterly but the series is actually monthly (etc.).
 function inferCadenceFromEntries(entries) {
   if (!entries || entries.length < 3) return null;
 
@@ -187,11 +185,6 @@ function getMedianGapDays(entries) {
     : gaps[mid];
 }
 
-function isMonthlyCadence(cadence) {
-  const c = cadence?.toLowerCase?.();
-  return c === "monthly" || c === "month";
-}
-
 function getMidpointDate(startDate, endDate) {
   if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
     return new Date(NaN);
@@ -239,56 +232,6 @@ export async function load({ fetch }) {
     metadataBySeries[key] = meta;
   }
 
-  // Load updated_this_week separately
-  const updatedStr = await (await fetch(updatedUrl)).text();
-  const updatedArray = csvParse(updatedStr, autoType);
-
-  // Handle "auto" dates by finding the most recent update date from updated.csv
-  if (dates.current === "auto" || dates.next === "auto") {
-    // Parse dates from updated.csv (format: YYYY-MM-DD)
-    const updateDates = updatedArray
-      .map((row) => {
-        // Column name in updated.csv is `date_updated` (older files used `date_of_update`)
-        const rawDate = row.date_updated ?? row.date_of_update;
-        if (!rawDate) return null;
-        const dateStr = String(rawDate);
-        const parsed = new Date(dateStr);
-        return isNaN(parsed.getTime()) ? null : parsed;
-      })
-      .filter((d) => d !== null);
-
-    // Find the most recent date
-    const mostRecentDate =
-      updateDates.length > 0 ? new Date(Math.max(...updateDates)) : new Date();
-
-    // Calculate next update date (7 days later)
-    const nextUpdateDate = new Date(mostRecentDate);
-    nextUpdateDate.setDate(nextUpdateDate.getDate() + 7);
-
-    // Format dates as YYYY-MM-DD
-    const formatDate = (d) => {
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
-    };
-
-    if (dates.current === "auto") {
-      dates.current = formatDate(mostRecentDate);
-    }
-    if (dates.next === "auto") {
-      dates.next = formatDate(nextUpdateDate);
-    }
-  }
-
-  const updatedBySeries = {};
-  for (const item of updatedArray) {
-    const rawKey = item?.series_id;
-    if (rawKey === null || rawKey === undefined) continue;
-    const key = String(rawKey).trim();
-    if (!key) continue;
-    updatedBySeries[key] = item.updated_this_week;
-  }
 
   const str = await (await fetch(dataUrl)).text();
   const array = csvParse(str, autoType);
@@ -495,36 +438,16 @@ export async function load({ fetch }) {
     const latest = entries[entries.length - 1];
 
     const meta = metadataBySeries[series_id] ?? {};
-    const dataFrequency = meta?.data_frequency;
-    // If the underlying data is monthly, shift points from the 1st to the 15th
-    // so they plot mid-month on the chart.
     const inferredCadence = inferCadenceFromEntries(entries);
-    const cadenceForPlot = dataFrequency ?? inferredCadence;
-    if (isMonthlyCadence(cadenceForPlot)) {
-      for (const entry of entries) {
-        const d = entry?.date;
-        if (!(d instanceof Date) || Number.isNaN(d.getTime())) continue;
-        if (d.getDate() !== 1) continue;
-
-        // Keep the original (1st-of-month) date for grey-band calculations,
-        // but plot the point at mid-month.
-        entry.gapDate = entry.gapDate instanceof Date ? entry.gapDate : d;
-        entry.date = new Date(d.getFullYear(), d.getMonth(), 15);
-      }
-    }
 
     // Short term = 1 calendar year back; long term = 5 calendar years back.
-    // Use the larger of metadata cadence and observed spacing to support
-    // irregular custom period series where metadata cadence can be too strict.
-    const cadenceForLookback = dataFrequency ?? inferredCadence;
-    const cadenceToleranceDays = getCadenceApproxDays(cadenceForLookback) * 2;
+    // Use the larger of inferred spacing to support irregular custom period series.
     const inferredToleranceDays = getCadenceApproxDays(inferredCadence) * 2;
     const observedMedianGapDays = getMedianGapDays(entries);
     const observedToleranceDays = Number.isFinite(observedMedianGapDays)
       ? observedMedianGapDays * 1.5
       : 0;
     const maxDiffDays = Math.max(
-      cadenceToleranceDays,
       inferredToleranceDays,
       observedToleranceDays
     );
@@ -569,7 +492,6 @@ export async function load({ fetch }) {
     array,
     latestBySeries: result,
     metadataBySeries,
-    updatedBySeries,
     categorySections,
     dates,
   };

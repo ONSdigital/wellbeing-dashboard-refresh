@@ -275,16 +275,11 @@ long_df <- purrr::pmap_dfr(
 ) %>%
   filter(!is.na(date))
 
-# Per-series dp from metadata (indicator dp preferred, then chart dp, then fallback)
+# Per-series dp from metadata (chart dp, then fallback)
 series_dp <- metadata_df %>%
   transmute(
     series_id = str_trim(as.character(series_id)),
     dp = dplyr::coalesce(
-      if_else(
-        as.logical(as.character(custom_dp_indicator)),
-        suppressWarnings(as.integer(dp_indicator)),
-        NA_integer_
-      ),
       if_else(
         as.logical(as.character(custom_dp_chart)),
         suppressWarnings(as.integer(dp_chart)),
